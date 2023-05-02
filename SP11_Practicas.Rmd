@@ -1,0 +1,301 @@
+---
+title: "SP11_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("FrF2")    # Cargamos la librería FrF2 para poder ejecutar la función FrF2()
+library("unrepx")  # Cargamos la librería unrepx para poder ejecutar la función yates(), entre otras.
+library("lmtest")  # Cargamos la librería lmtest para poder realizar el contraste de Breusch-Pagan.
+library("equatiomatic")
+```
+
+
+# Enunciado 1
+
+>Se desea aplicar un diseño de experimentos a las puntuaciones de los alumnos de la asignatura de Control de Calidad (con todas las salvedades posibles, ya que el experimento no es repetible, no son independientes, y posiblemente no sean normales).
+Como Factores estarán:
+K=Notas Kahoots, con dos niveles (-1 para < 5 y +1 para >=5)
+P=Notas Prácticas, con dos niveles (-1 para < 7 y +1 para >=7)
+T=Notas Talleres, con dos niveles (-1 para < 6.5 y +1 para >=6.5)
+
+
+## a) Cree el diseño y añada los datos (en el formato estándar).
+
+Estamos ante un diseño $2^3$ con una réplica, vamos a proceder a crear el diseño
+
+
+```{r}
+Diseno <- FrF2(nfactors = 3,nruns = 2^3,factor.names = list("T" = c(-1,1),
+                                                          P = c(-1,1),
+                                                          K = c(-1,1)),
+               replications = 1,randomize = FALSE)
+Diseno
+```
+
+Creamos ahora el vector de los datos que además vienen en orden estándar y los añadimos
+
+```{r}
+Y <- c(4.48,5.12,5.26,5.32,5.03,4.61,5.22,6.31)
+```
+
+```{r}
+Tabla <- add.response(design = Diseno,response = Y)
+Tabla
+```
+
+## b) Realice las gráficas de los factores principales y de las interacciones (coméntelas)
+
+### Grafica factores principales
+
+```{r}
+MP = MEPlot(Tabla)       # Genera la gráfica de factores principales.
+diff(MP)
+```
+
+Vemos que el factor con mayor efecto(pendiente) es el P, que corresponde a las práticas, seguido del T  y por último el K, además vemos que todas son positivas como es lógico, a mejor nota en cada apartado individual, mejor nota global, no obstante podemos ver que los efectos son bastante pequeños, no llegando a superar ninguno el punto.
+
+
+### Gráfica interacciones
+
+```{r}
+IA = IAPlot(Tabla)       # Realiza el gráfico de interacciones.
+```
+
+Observamos que todas las interacciones presentan relaciones sinergísticas de modo que ninguna interacción se cruza con la otra, por lo que las interacciones de orden 2 no parecen ser significativas.
+
+## c) Realice el gráfico de probabilidad normal para el diseño (con alfa=0.1) y diga que factores resultan significativos.
+
+
+```{r}
+DanielPlot(fit=Tabla, half=T, code=T, autolab=TRUE,alpha=0.1)   # Visualizamos la gráfica de factores significativos de Daniel.
+```
+
+Vemos que los efectos más destacados en valor absoluto son el P,TPK y el T en este orden, por lo que son los candidatos a ser los más significativos. 
+
+## d) Calcule el valor de los efectos (por el método Yates).
+
+```{r}
+efectos = yates(Tabla$Y)  # Calculamos los efectos de cada factor e interacción.
+sort(abs(efectos),decreasing = TRUE)  # Devolvemos los efectos.
+```
+
+Vemos que coincide con lo comentado en el apartado anterior, los mayores efectos en valor absoluto son el P,TPK y el T en este orden
+
+## e) Realice los gráfico de probabilidad normal y Pareto para los efectos, (con alfa=0.1) y diga que factores resultan significativos.
+
+Realizamos el gráfico de probabilidad (semi)normal para los efectos.
+
+```{r}
+MEDA<-2*mad(efectos[nchar(names(efectos))>1])   # Calculamos la MEDA.
+hnplot(efectos, half=T, ID=MEDA, alpha=0.1)   # Realiza el gráfico seminormal.
+```
+
+Confirmamos que solo son significativos el factor B y la interacción ABC, de modo que ninguna interacción de orden 2 es significativa.
+
+Verificamos los anteriores resultados con la gráfica de Pareto.
+
+```{r}
+parplot(efectos)    # Realiza el gráfico parplot.
+abline(h=MEDA, col="red")    # Colocamos una línea indicadora de la posición de la MEDA.
+```
+
+De nuevo, confirmamos que el factor P y la interacción TPK son significativos al situarse por encima de la línea roja representativa de la MEDA.
+
+
+## f) Haciendo uso del método MEDA estime el valor de "2*S" y diga que factores resultan significativos.
+
+
+```{r}
+MEDA   # Devolvemos el valor de la MEDA ya calculado en el anterior apartado.
+```
+Hemos obtenido una MEDA igual a 0.35584. Aquellos efectos mayores a 0.35584 se considerarán significativos. Los volvemos a visualizar.
+
+```{r}
+efectos[which(efectos > MEDA)]  # Devuelve los valores de los efectos.
+```
+
+Los efectos correspondientes al factor P y la interacción TPK tienen valores mayores a la MEDA, siendo 0.7175 y 0.5225 respectivamente. El resto de efectos no superan el límite de la MEDA y por tanto no se consideran significativos.
+
+
+## g) Si es posible realizar una tabla ANOVA, hágala y diga que factores resultan significativos.
+
+No podemos evaluar la significación de los factores con una tabla ANOVA que incorpore a todos los factores e interacciones por falta de réplicas, por lo que haremos una tabla ANOVA despreciando interacciones de orden superior a 2.
+
+```{r}
+Modelo <- lm(Y~(T+P+K)^2,Tabla)   # Creamos el modelo lineal despreciando interacciones de orden superior a 2.
+anova = summary(aov(Modelo))     # Creamos la tabla ANOVA.
+anova   # La visualizamos
+```
+
+Obtenemos con esta tabla ANOVA que ninguno de los factores e interacciones son significativos; en contradicción con todo el análisis anterior.
+
+Algo que viene de que los residuos solo se quedan con un grado de libertad, algo que nos va a devolver unas estimaciones bastante pobres, por lo que no tendremos en cuenta los resultados devueltos por esta tabla ANOVA.
+
+
+## h) Realice el gráfico de probabilidad normal para el diseño (con alfa=0.1) con una marca roja para 2*S y compare con el resultado del apartado "g)"
+
+
+Realizamos el gráfico de probabilidad normal para el diseño DanielPlot con la Meda añadida.
+
+```{r}
+DanielPlot(Tabla,alpha = 0.1)
+abline(v=MEDA, col="red")
+```
+
+Observamos que los resultados del método gráfico son de nuevo incoherentes con los de la tabla ANOVA del apartado g), devolviendo que los factores P y TPK son significativos.
+
+
+## i) Realice el modelo lineal adecuado de la ecuación de regresión. Escriba la recta de regresión, así como los coeficientes beta de la misma.
+
+Vamos a crear el modelo de regresión teniendo en cuenta solamente los resultado del método gráfico.
+
+Nos vamos a aprovechar de la relación que guardan los efectos con los Betas, para construir el modelo concretamente sabesmos que
+
+$$
+\beta = \frac{Efectos}{2}
+$$
+
+```{r}
+efectos[c("A","B","C","ABC")]/2
+```
+
+Que queda de la forma cuando le añadimos el intercepto
+
+$\widehat{Y} = 5.16875 + 0.17125x_T + 0.35875x_{P} + 0.12375x_K + 0.26125x_{TPK}$.
+
+
+## j) Calcule (y muestre) los valores predichos (compárelos con los valores observados)
+
+```{r}
+Betas <- c(5.16875,0.17125,0.35875,0.12375,0.26125)
+X <- expand.grid(T=c(-1,1),P=c(-1,1),K=c(-1,1))
+X$TPK <- X$T*X$P*X$K
+I <- rep(1,8)
+(Y <- as.matrix(data.frame(I,X)))
+```
+
+Por tanto las predicciones van a ser
+```{r}
+trata <- c("(1)",	"a",	"b",	"ab",	"c",	"ac"	,"bc"	,"abc")
+data.frame(trata,Predicción <- Y %*% Betas)
+```
+
+## k) Realice el estudio (completo) de la normalidad de los residuos (gráficas y test Normalidad) y comete los resultados.
+
+Primero tenemos que calcular los residuos
+
+```{r}
+(residuos <- Tabla$Y - Predicción)
+```
+
+Por último, estudiamos los supuestos del modelo lineal; esto es, la normalidad y homocedasticidad de los residuos.
+
+Comenzamos contrastando la normalidad gráficamente.
+
+
+```{r}
+qqnorm(residuos)  # Realiza el gráfico de probabilidad normal.
+qqline(residuos, col = "red")   # Añade la recta de cuantiles.
+```
+
+
+Los residuos parecen distanciarse bastante de la recta de cuantiles de la normal. Procedemos a evaluar su significación con el test de Shapiro.
+
+```{r}
+shapiro.test(residuos)  # Realiza el contraste de Shapiro.
+```
+
+Obtenemos un p-valor de 0.1022, que es mayor al nivel de significación $\alpha=0.1$, por lo que no rechazamos la hipótesis nula de normalidad.
+
+Por último estudiamos la homocedasticidad de los residuos mediante el contraste de Breusch-Pagan.
+
+Como no hemos podido crear el modelo, no lo estudiaremos.
+
+Concluimos que no podemos descartar que los residuos cumplan las hipótesis del modelo; esto es, $\varepsilon\sim N(0,\sigma^2)$.
+
+## l) comentario general sobre los distintos métodos de obtener los factores significativos y sus resultados.
+
+Tras realizar diferentes métodos como la MEDA, el gráfico de probabilidad normal o la tabla ANOVA, concluimos que este último no nos permite obtener resultados concluyentes en este caso, ya que los residuos tienen un único grado de libertad, al igual que cada factor.
+
+Ofrecemos la solución recomendada considerando los factores T, P, K y la interacción TPK, pero consideramos que la alternativa con P y TPK es más coherente con el resto de trabajos hechos hasta ahora asi como las gráficas expuestas en este trabajo.
+
+Finalmente, como conclusión, dado que los coeficientes del modelo son positivos, estimamos que la calificación final de la asignatura se incrementa conforme son mayores las calificaciones en los Kahoots, Prácticas y Talleres.
+
+
+
+# Enunciado 2
+
+> Se desea aplicar un diseño robusto basado en la idea de Taguchi a las puntuaciones de los alumnos de la asignatura de Control de Calidad (con todas las salvedades posibles, ya que el experimento no es repetible, no son independientes, y posiblemente no sean normales).
+Como Factores de Control (aquellos que se pueden controlar, en este caso por el profesor) estarán:
+K=Notas Kahoots, con dos niveles (-1 para < 5 y +1 para >=5)
+P=Notas Prácticas, con dos niveles (-1 para < 7 y +1 para >=7)
+T=Notas Talleres, con dos niveles (-1 para < 6.5 y +1 para >=6.5)
+Como Factores de Ruido (aquellos que no se pueden controlar, en este caso por el profesor) estará:
+H=Horas de estudio semanales, según consulta, con dos niveles (-1 para ≤ 2 horas y +1 para > 2 horas)
+Los resultados obtenidos de las puntuaciones medias de los alumnos en el primer examen son, según H=-1 y H=+1:
+
+
+## a)  Calcule la media y la desviación para cada tratamiento.
+
+Lo primero que podemos ver es que tenemos 3 factores de control, K,P y T, cada uno con dos niveles, por lo que se corresponden con un diseño $2^3$, pero además tenemos un factor de ruido que es el H. 
+
+
+```{r}
+Diseno1 <- FrF2(nfactors = 3,nruns = 8,factor.names = list(T = c(-1,1),
+                                                          P = c(-1,1),
+                                                          K = c(-1,1)),
+               replications = 1,randomize = FALSE)
+Diseno1
+```
+
+Lo ideal sería crear un diseño para la variable ruido, no obstante al solo tener un factor, no podemos crear este modelo, por tanto vamos a crear H con sus datos.
+
+```{r}
+H <- matrix(data = c(2.96,7.02,4.07,6.17,4.16,7.46,4.65,5.99,3.5,6.55,4.15,4.94,5.04,5.47,5.55,7.59),nrow = 8,ncol = 2,byrow = TRUE)
+H <- as.data.frame(H)
+colnames(H) = c(-1,1)
+H
+```
+
+Calculamos ahora la media para cada combinación, la desviacion tipica no podemos calcularla ya que solo tenemos dos valores por nivel del diseño.
+
+```{r}
+ndf <- Diseno1
+ndf$Media <- tapply(H$`-1`,H$`1`,FUN = mean)
+ndf
+```
+
+## b)  Diga con que combinación de factores se obtiene una mejor puntuación media.
+
+```{r}
+ndf[which(ndf$Media == max(ndf$Media)),]
+```
+
+Vemos que la combinación que nos devuelve la mejor nota es en la que los factores T,P y K valen 1.
+
+
+## c) utilice los datos del factor ruido como dos réplicas del diseño de experimentos 2^3 y realice su tabla ANOVA.
+
+El diseño ya lo tenemos creado del apartado A, por lo que lo que tenemos que hacer es añadirle la variable respuesta, los datos además están en orden estándar
+
+```{r}
+(Y <- c(H$`-1`,H$`1`))
+
+```
+
+## d) Realice el gráfico adecuado para comprobar que se cumple lo obtenido en c)
+

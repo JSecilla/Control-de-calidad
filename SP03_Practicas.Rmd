@@ -1,0 +1,246 @@
+---
+title: "SP03_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(qcc)
+library(tidyverse)
+library(readxl)
+library(randtests)
+eliminar <- function(fuera,reordenar){
+  final <- fuera
+  for(i in 1:length(reordenar)){
+    sumar <- 0
+    for(j in 1:length(fuera)){
+      if(reordenar[i]>=fuera[j]){
+        sumar <- sumar + 1
+      }
+    }
+    x <- reordenar[i] + sumar
+    final <- c(final,x)
+    final <- sort(final)
+  }
+  return(final)
+}
+```
+
+# Enunciado 1
+
+> Los siguientes datos se han obtenido de 30  muestras, cada una con un tamaño diferente, del número de disconformes observados a la hora de analizar el producto X.
+
+```{r}
+Libro1 <- read_excel("C:/Users/jsm01/Downloads/Libro1.xlsx", col_names = FALSE)
+datos <- as.data.frame(t(Libro1[-1,]))
+datos <- datos[-1,]
+`colnames<-`(datos,c("ni","di"))
+```
+
+```{r}
+set.seed(1)
+m <- 30 # semilla es el número del grupo
+index<-1:m      # donde m es el número de muestras
+index<-sample(index, m, replace = FALSE)
+datos<-datos[index,]
+datos <- `colnames<-`(datos,c("ni","di"))
+datos$ni <- as.numeric(datos$ni)
+datos$di <- as.numeric(datos$di)
+```
+
+
+> Analizar los datos y comprobar, en base a su Gráfico de Control, si el proceso está, o no, BAJO CONTROL.
+
+## Primera inspección
+
+```{r}
+q1 <- qcc(data = datos$di,type = "p",sizes = datos$ni)
+plot(q1)
+```
+
+Vemos que los tamaños de cada muestra cambian, por lo que vamos a optar por usar el gráfico p estandarizado.
+
+Vamos a cargar las funciones necesarias para ello.
+
+## Funciones necesarias para crear el type=“p.std”    
+
+
+```{r}
+# AVISO: estas funciones se deben ejecutar para definir el nuevo tipo. type=“p.std”  
+
+# Función para calcular estadísticas de grupo y centro:
+stats.p.std = function(data, sizes)
+{
+  data = as.vector(data)
+  sizes = as.vector(sizes)
+  pbar = sum(data)/sum(sizes)
+  z = (data/sizes - pbar)/sqrt(pbar*(1-pbar)/sizes)
+  list(statistics = z, center = 0)
+}
+
+
+# Función para calcular la desviación estándar dentro del grupo:
+sd.p.std = function(data, sizes, ...) { return(1) }
+
+
+# Función para calcular los límites de control basados en una aproximación normal:
+limits.p.std <- function(center, std.dev, sizes, nsigmas = NULL, conf = NULL)
+{
+  if(is.null(conf))
+    { lcl <- -nsigmas
+      ucl <- +nsigmas
+  } else
+    { if(conf > 0 & conf < 1)
+        { nsigmas <- qnorm(1 - (1 - conf)/2)
+          lcl <- -nsigmas
+          ucl <- +nsigmas }
+      else stop("invalid 'conf' argument.")
+  }
+  limits <- matrix(c(lcl, ucl), ncol = 2)
+  rownames(limits) <- rep("", length = nrow(limits))
+  colnames(limits) <- c("LCL", "UCL")
+  return(limits)
+}
+```
+
+
+```{r}
+q2 <- qcc(data = datos$di,type = "p.std",sizes = datos$ni)
+plot(q2)
+```
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que se incumple la norma 4, es decir hay una recha de más de 7 por encima del límite central, vamos a comprobarlo con la función de rachas
+
+```{r}
+(y <- (q2$statistics>q2$center)*1)
+```
+
+```{r}
+rr <- runs.test(x = y,alternative = "left.sided",threshold = 0.5,pvalue = "exact",plot = T)
+```
+
+Vemos que la racha más grande es de 9 y se encuentra en las muestras 1-9.
+
+# Enunciado 2
+
+> En la siguiente tabla se presenta el número de disconformidades observadas en 26 muestras sucesivas de 100 tarjetas de circuitos impresos.
+Con esta información construya el gráfico de control para las disconformidades hasta llegar a que el proceso esté bajo control.
+(todas las muestras que estén fuera de los límites serán por causas atribuibles por lo que podrán ser eliminadas).
+
+```{r}
+D <- c(21,24,16,12,15,5,28,20,33,25,20,24,16,19,10,17,13,22,18,39,28,24,16,19,17,15)
+Size <- rep(100,26)
+Sample <- c(1:26)
+datos <- data.frame(Sample,D,Size)
+```
+
+En este caso nos pregunta por el diagrama de numero de disconformidades, es decir el diagrama c
+
+## Primera inspeccion
+
+```{r}
+q1 <- qcc(data = datos$D,type = "c",sizes = datos$Size)
+plot(q1)
+```
+
+
+```{r}
+which(q1$violations==1)
+fuera <- which(q1$violations==1)
+datos1 <- datos[-fuera,]
+```
+
+## Segunda inspeccion
+
+```{r}
+q2 <- qcc(data = datos1$D,type = "c",sizes = datos1$Size)
+plot(q2)
+```
+
+
+```{r}
+which(q2$violations==1)
+fuera <- eliminar(fuera = fuera,reordenar = which(q2$violations==1))
+datos2 <- datos[-fuera,]
+```
+
+## Tercera inspeccion
+
+```{r}
+q3 <- qcc(data = datos2$D,type = "c",sizes = datos2$Size)
+plot(q3)
+```
+
+Vemos que ya está bajo control un vez elininadas las muestras 6,9,20.
+
+# Enunciado 3
+> Un fabricante de ordenadores personales desea establecer un gráfico de control para las disconformidades por unidad en la línea de ensamblaje final. El tamaño de las muestras es de 10 ordenadores.
+
+> En la tabla se muestran los datos del número de disconformidades en 25 muestras de tamaño 10 cada una.
+Realice el gráfico correspondiente hasta llegar a que el proceso esté bajo control. (todas las muestras que estén fuera de los límites serán por causas atribuibles por lo que podrán ser eliminadas).
+
+```{r}
+datos=matrix(c(1:25,15,3,10,12,11,11,0,14,9,7,8,21,3,11,5,6,2,1,10,17,11,13,1,9,10,rep(10,25)),ncol=3)  # Pasamos los datos del aula global en formato de matriz.
+colnames(datos)=c("sample","D","size") # Nombramos a qué corresponde cada columna de los datos.
+datos # Visualizamos los datos.
+```
+
+## Primera inspección
+
+El tipo de diagrama de control que habrá que usar es el tipo "u" ya que bnos piden el número de disconformidades por unidad.
+
+```{r}
+Q1=qcc(data = datos[,2],type="u",sizes=datos[,3],nsigmas=3,rules=c(1,4))   # Generamos el primer diagrama de control.
+plot(Q1) # Lo visualizamos.
+which(Q1$violations==1)
+```
+
+
+```{r}
+fuera <- which(Q1$violations==1)
+datos1 <- datos[-fuera,]
+```
+
+## Segunda inspeccion
+
+```{r}
+q2=qcc(data = datos1[,2],type="u",sizes=datos1[,3],nsigmas=3,rules=c(1,4))   # Generamos el primer diagrama de control.
+plot(q2) # Lo visualizamos.
+which(q2$violations==1)
+```
+
+
+```{r}
+fuera <- c(fuera,20)
+datos2 <- datos[-fuera,]
+```
+
+## Tercera inspeccion
+
+```{r}
+q3=qcc(data = datos2[,2],type="u",sizes=datos2[,3],nsigmas=3,rules=c(1,4))   # Generamos el primer diagrama de control.
+plot(q3) # Lo visualizamos.
+which(q3$violations==1)
+```
+
+Vemos que tras eliminar las muestras 12 y 20 el gráfico está bajo control.
+
+
+
+

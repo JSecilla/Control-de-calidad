@@ -1,0 +1,368 @@
+---
+title: "SP05_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(qcc)
+library(tidyverse)
+library(readxl)
+library(randtests)
+library(SixSigma)
+eliminar <- function(fuera,reordenar){
+  final <- fuera
+  for(i in 1:length(reordenar)){
+    sumar <- 0
+    for(j in 1:length(fuera)){
+      if(reordenar[i]>=fuera[j]){
+        sumar <- sumar + 1
+      }
+    }
+    x <- reordenar[i] + sumar
+    final <- c(final,x)
+    final <- sort(final)
+  }
+  return(final)
+}
+```
+
+
+# Enunciado 1
+
+> En esta ocasión se está verificando la fabricación de listones de madera de 100cm de largo. Para ello se han recogido varias muestras de la cadena de corte, siendo las medidas de los listones las que aparecen en la tabla (para 25 muestras):
+Se precisa una estimación de la longitud media de los listones del proceso, así como de su desviación típica.
+Siendo que las especificaciones técnicas de fabricación son 100±0,15 determinar el porcentaje de listones de madera que se producirán fuera de esos límites.
+
+## Cargado de datos
+
+```{r}
+datos <- read.csv("C:/Users/jsm01/Downloads/datosS05E1 (2).csv")
+```
+
+## Estudio de la variabilidad
+
+Cómo el tamaño de todas las muestras es 10, vamos a optar por usar el gráfico S.
+
+### Primer estudio de la variabilidad
+
+```{r}
+q1 <- qcc(data = datos,type = "S")
+plot(q1)
+```
+
+```{r}
+(fuera <- which(q1$violations==1))
+```
+
+Vemos que la muestra 10 está fuera de los límites de control, por lo que la eliminamos
+
+```{r}
+datos1 <- datos[-fuera,]
+```
+
+### Segundo estudio de la variabilidad
+
+```{r}
+q2 <- qcc(data = datos1,type = "S")
+plot(q2)
+```
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que el gráfico está bajo control tras eliminar la muestra 10.
+
+## Estudio de la media
+
+### Primer estudio dce la media
+
+Vamos a usar el gráfico Xbar
+
+```{r}
+q3 <- qcc(data = datos1,type = "xbar",std.dev = "UWAVE-SD")
+plot(q3)
+```
+
+```{r}
+(reordenar <- which(q3$violations==1))
+```
+
+Vemos que la muestra 7 se sale fuera de los límites de control, vamos a eliminarla.
+
+```{r}
+fuera <- eliminar(fuera = fuera,reordenar = reordenar)
+datos2 <- datos[-fuera,]
+```
+
+### Segundo estudio de la media
+
+```{r}
+q4 <- qcc(data = datos2,type = "xbar",std.dev = "UWAVE-SD")
+plot(q4)
+```
+
+```{r}
+which(q4$violations==1)
+which(q4$violations==4)
+```
+
+Vemos que el gráfico está bajo control
+
+Volvemos a graficar el S con las muestras finales.
+
+```{r}
+q5 <- qcc(data = datos2,type = "S")
+plot(q5)
+```
+
+Vemos que también está bajo control.
+
+## Resumen de ambos estudios
+
+```{r}
+summary(q4)
+```
+
+```{r}
+summary(q5)
+```
+
+## Capacidad del proceso
+
+```{r}
+objetivo <- 100
+LIE <- 100-0.15
+LSE <- 100+0.15
+
+pq<-processCapability(q4, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+```{r}
+summary(pq)
+```
+
+Vemos que la capacidad del proceso es  0.325 < 1 por tanto el proceso no es capáz, se producirán muchas unidades fuera de los límites de especificación acordados.
+
+```{r}
+sum(pq$exp)*100
+```
+
+
+# Enunciado 2
+
+> La pintura de cal requiere un proceso costoso, en tiempo para su elaboración, hasta que se consigue la densidad desea.
+A continuación, se muestran las medidas de la densidad del producto obtenidas de 25 lotes.
+Se precisa una estimación de la media de la densidad del producto, así como de su desviación típica.
+Siendo que las especificaciones técnicas de fabricación son 1,2±0,04 determinar el porcentaje de lotes de producto que se producirán fuera de esos límites.
+
+## Cargado de datos
+
+```{r}
+datos <- read.csv("C:/Users/jsm01/Downloads/datosS05E2 (1).csv", sep="")
+```
+
+## Estudio de la media
+
+Vemos que el tamaño de cada muestra es de 1, por lo que no podemos estudiar la variabilidad, pasamos directamente al estudio de la media, concretamente vamos a usar el gráfico xbar.one
+
+### Primer estudio
+
+```{r}
+q1 <- qcc(data = datos,type = "xbar.one")
+plot(q1)
+```
+
+```{r}
+(fuera <- which(q1$violations==1))
+```
+
+VEmos que la muestra 12, está fuera de los límites de control, por tanto procedemos a eliminarla.
+
+```{r}
+datos1 <- datos[-fuera,]
+```
+
+### Segundo estudio
+
+```{r}
+q2 <- qcc(data = datos1,type = "xbar.one")
+plot(q2)
+```
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que el gráfico está bajo control.
+
+## Resumen de los calculado
+
+```{r}
+summary(q2)
+```
+
+## Capacidad del proceso
+
+
+```{r}
+objetivo <- 1.2
+LIE <- 1.2-0.04
+LSE <- 1.2+0.04
+
+pq<-processCapability(q2, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+```{r}
+summary(pq)
+```
+
+Vemos que la capacidad del proceso es  0.571 < 1 por tanto el proceso no es capáz, se producirán muchas unidades fuera de los límites de especificación acordados.
+
+```{r}
+sum(pq$exp)*100
+```
+
+
+# Enunciado 3
+
+> El espesor de una tarjeta de circuitos impresos es un parámetro importante de la calidad. En el archivo de datos adjunto se presenta los datos del espesor de las tarjetas (en pulgadas) para 25 muestras de 3 tarjetas cada una.
+Se precisa una estimación del espesor medio de las tarjetas de circuitos impresos del proceso, así como de su desviación típica.
+Siendo que las especificaciones técnicas de fabricación son 0.063±0,0015 pulgadas, determinar el porcentaje de tarjetas que se producirán fuera de esos límites.
+
+## Cargado de datos
+
+```{r}
+datos <- read.csv("C:/Users/jsm01/Downloads/datosS05E3 (1).csv")
+```
+
+## Estudio de la variabilidad
+
+Como las muestras son de tamaño 3, vamos a usar el gráfico R
+
+### Primer estudio de la variabilidad
+
+```{r}
+q1 <- qcc(data = datos,type = "R")
+plot(q1)
+```
+
+```{r}
+(fuera <-which(q1$violations==1))
+```
+
+Vemos que la muestra 15 está fuera de los límites de control, por lo que la eliminamos.
+
+```{r}
+datos1 <- datos[-fuera,]
+```
+
+### Segundo estudio de la variabilidad
+
+```{r}
+q2 <- qcc(data = datos1,type = "R")
+plot(q2)
+```
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que tras eliminar la muestra 15, el gráfico está bajo control
+
+## Estudio de la media
+
+### Primer estudio de la media
+
+```{r}
+q3 <- qcc(data = datos1,type = "xbar")
+plot(q3)
+```
+
+
+```{r}
+(reordenar <- which(q3$violations==1))
+```
+
+Vemos que la muestra 14 y 21 se salen fuera de los limites de control
+
+```{r}
+(fuera <- eliminar(fuera = fuera,reordenar = reordenar))
+datos2 <- datos[-fuera,]
+```
+
+### Segundo estudio de la media
+
+```{r}
+q4 <- qcc(data = datos2,type = "xbar")
+plot(q4)
+```
+
+```{r}
+which(q4$violations==1)
+which(q4$violations==4)
+```
+
+Vemos que el proceso está bajo control.
+
+## Resumen de ambos procesos
+
+Antes necesitamos volver a calcular el gráfico S con los últimos datos.
+
+```{r}
+q5 <- qcc(data = datos2,type = "S")
+plot(q5)
+```
+
+```{r}
+summary(q4)
+```
+
+```{r}
+summary(q5)
+```
+
+
+## Capacidad del proceso
+
+
+```{r}
+objetivo <- 0.063
+LIE <- 0.063-0.0015
+LSE <- 0.063+0.0015
+
+pq<-processCapability(q4, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+```{r}
+summary(pq)
+```
+
+Vemos que la capacidad del proceso es  1.029 < 1 por tanto el proceso es capáz, se producirán muchas unidades dentro de los límites de especificación acordados.
+
+```{r}
+sum(pq$exp)*100
+```
+
+
+
+

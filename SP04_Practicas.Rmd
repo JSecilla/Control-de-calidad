@@ -1,0 +1,642 @@
+---
+title: "SP04_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(qcc)
+library(tidyverse)
+library(readxl)
+library(randtests)
+library(SixSigma)
+eliminar <- function(fuera,reordenar){
+  final <- fuera
+  for(i in 1:length(reordenar)){
+    sumar <- 0
+    for(j in 1:length(fuera)){
+      if(reordenar[i]>=fuera[j]){
+        sumar <- sumar + 1
+      }
+    }
+    x <- reordenar[i] + sumar
+    final <- c(final,x)
+    final <- sort(final)
+  }
+  return(final)
+}
+```
+
+
+# Enunciado 1
+
+> A continuación, se muestran los datos recogidos de la línea de producción referente a una de las dimensiones del producto A. Son 25 muestras de tamaño 5.
+Utilice estos datos de prueba para calcular los parámetros del proceso, cuando éste esté bajo control.
+Todas las muestras que se encuentren fuera de los límites de 3 sigma se ha comprobado que provienen de causas atribuibles, por lo que pueden ser eliminadas.
+Si elimina alguna muestra, indíquelo claramente. Así como si el proceso está o no bajo control.
+Debe obtener, si se puede, una estimación de µ y de s del proceso.
+Además deberá calcular, si se puede, el porcentaje de productos que no cumplirán con las especificaciones técnicas, que son 83±0.2
+
+```{r}
+datos <- read.csv2("C:/Users/jsm01/Downloads/datossp041.txt", header=FALSE)
+datos <- datos[,-1]
+datos <- t(datos)
+```
+
+## Estudio de la variabilidad
+
+### Primer estudio de la variabilidad
+
+Cómo el tamaño de las muestras es menor que 10, por tanto vamos a usar el gráfico R
+
+```{r}
+q1 <- qcc(data = datos,type = "R")
+plot(q1)
+```
+
+```{r}
+which(q1$violations==1)
+fuera <- 13
+datos1 <- datos[-fuera,]
+```
+
+Vemos que la muestra 13 está fuera de los límites de control, por lo que la hemos eliminado.
+
+### Segundo estudio de la variabilidad
+
+```{r}
+q2 <- qcc(data = datos1,type = "R")
+plot(q2)
+```
+
+
+```{r}
+(reordenar <- which(q2$violations==1))
+```
+
+Vemos que la muestra 8 está fuera de los lñimites de control por lo que la eliminamos.
+
+```{r}
+fuera <- eliminar(fuera = fuera,reordenar = reordenar)
+datos2 <- datos[-fuera,]
+```
+
+### Tercera inspección de la variabilidad
+
+```{r}
+q3 <- qcc(data = datos2,type = "R")
+plot(q3)
+```
+
+```{r}
+which(q3$violations==1)
+which(q3$violations==4)
+```
+
+Vemos que está bajo control, por lo que podemos pasar a estudiar la media.
+
+## Estudio de la media
+
+### Primera inspeccion de la media
+
+En este caso vamos a usar el gráfico XBar.
+
+```{r}
+q4 <- qcc(data = datos2,type = "xbar")
+plot(q4)
+```
+
+```{r}
+(reordenar <- which(q4$violations==1))
+```
+
+Vemos que la muestra 13 está fuera de los límites de control, por lo que procedemos a eliminarla
+
+```{r}
+fuera <- eliminar(fuera = fuera,reordenar = reordenar)
+datos3 <- datos[-fuera,]
+```
+
+### Segunda inspeccion de la media
+
+
+```{r}
+q5 <- qcc(data = datos3,type = "xbar")
+plot(q5)
+```
+
+```{r}
+which(q5$violations==1)
+which(q5$violations==4)
+```
+
+Vemos que el gráfico está bajo control, vamos a volver a graficar el R con los últimos datos.
+
+```{r}
+q6 <- qcc(data = datos3,type = "R")
+plot(q6)
+```
+
+## Resumen de ambos estudios
+
+```{r}
+summary(q5)
+```
+
+```{r}
+summary(q6)
+```
+
+
+Vemos que ambas desviaciones coinciden. 
+
+## Capacidad del proceso
+
+```{r}
+objetivo <- 83
+LIE <- 83-0.2
+LSE <- 83+0.2
+
+pq<-processCapability(q5, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+```{r}
+summary(pq)
+```
+
+Vemos que la capacidad del proceso es 0.694 < 1 por tanto el proceso no es capáz, se producirán muchas unidades fuera de los límites de especificación acordados.
+
+```{r}
+sum(pq$exp)*100
+```
+
+El porcentaje (esperado) de productos que no cumplirán con las especificaciones técnicas es de 3.75%
+
+
+# Enunciado 2
+
+> A continuación, se muestran los datos recogidos de la línea de producción referente a una de las dimensiones del producto A. Son 25 muestras de tamaño 6.
+Utilice estos datos de prueba para calcular los parámetros del proceso, cuando éste esté bajo control.
+Todas las muestras que se encuentren fuera de los límites creados para un nivel del confianza del 99% se ha comprobado que provienen de causas atribuibles, por lo que pueden ser eliminadas.
+Si elimina alguna muestra, indíquelo claramente. Así como si el proceso está o no bajo control.
+Debe obtener, si se puede, una estimación de µ y de s del proceso.
+Además deberá calcular, si se puede, el porcentaje de productos que no cumplirán con las especificaciones técnicas, que son 99±0.6
+
+## Cargado de datos
+
+
+```{r}
+datos <- read.csv2("C:/Users/jsm01/Downloads/datossp042.txt", header=FALSE)
+datos <- datos[,-1]
+datos <- t(datos)
+```
+
+## Estudio de la variabilidad
+
+Cómo las muestras son de tamaño 6, vamos a usar el gráfico R para estudiar la variabilidad del proceso.
+
+### Primer estudio de la variabilidad
+
+```{r}
+q1 <- qcc(data = datos,type = "R",confidence.level = 0.99)
+plot(q1)
+```
+
+```{r}
+(fuera <- which(q1$violations==1))
+```
+
+Vemos que las muestras 2 y 11 están fuera de los límites de control por lo que las eliminamos.
+
+```{r}
+datos1 <- datos[-fuera,]
+```
+
+### Segundo estudio de la variabilidad
+
+```{r}
+q2 <- qcc(data = datos1,type = "R",confidence.level = 0.99)
+plot(q2)
+```
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que el gráfico R está bajo control una vez eliminadas las muestras 2 y 11, por lo que procedemos a estudiar la media.
+
+## Estudio de la media
+
+### Primer estudio de la media
+
+Vamos a usar el gráfico Xbar
+
+```{r}
+q3 <- qcc(data = datos1,type = "xbar",confidence.level = 0.99)
+plot(q3)
+```
+
+```{r}
+which(q3$violations==1)
+which(q3$violations==4)
+```
+
+Vemos que el gráfico está bajo control.
+
+## Resumen de ambos estudios
+
+```{r}
+summary(q3)
+
+```
+
+```{r}
+summary(q2)
+```
+
+## Capacidad del proceso
+
+
+```{r}
+objetivo <- 99
+LIE <- 99-0.6
+LSE <- 99+0.6
+
+pq<-processCapability(q3, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+```{r}
+summary(pq)
+```
+
+Vemos que la capacidad del proceso es 1.02 < 1 implica que el proceso es capaz, es decir, que prácticamente todos los artículos que produzca estarán dentro de las tolerancias requeridas.
+
+```{r}
+sum(pq$exp)*100
+```
+
+El porcentaje (esperado) de productos que no cumplirán con las especificaciones técnicas es de 0.86%
+
+# Enunciado 3
+
+> A continuación, se muestran los datos recogidos de la línea de producción referente a una de las dimensiones del producto A. Son 25 muestras de tamaño 4. De una población con μ=10
+ y σ=0.06
+Utilice estos datos para calcular si el proceso está bajo control.
+Todas las muestras que se encuentren fuera de los límites de 3 sigma se ha comprobado que provienen de causas atribuibles, por lo que pueden ser eliminadas.
+Si elimina alguna muestra, indíquelo claramente. Así como si el proceso está o no bajo control.
+Además deberá calcular, si se puede, el porcentaje de productos que no cumplirán con las especificaciones técnicas, que son 10±0.2
+
+
+## Cargado de datos
+
+```{r}
+datos <- read.csv2("C:/Users/jsm01/Downloads/datossp043.txt", header=FALSE)
+datos <- datos[,-1]
+datos <- t(datos)
+```
+
+## Estudio de la variabilidad
+
+Como el tamaño de las muestras es menor que 10, vamos a usar el gráfico R, destacar que tenemos el parámetro poblacional conocido, es decir sigma es 0.06 y mu es 10.
+
+
+```{r}
+mu=10
+sigma=0.06
+
+n<-dim(datos)[2]
+d2<-ss.cc.getd2(n)
+
+Rm <- d2*sigma
+```
+
+
+### Primer estudio de la variabilidad
+
+
+```{r}
+q1 <- qcc(data = datos,type = "R",center = Rm,std.dev = sigma)
+plot(q1)
+```
+
+```{r}
+(fuera <- which(q1$violations==1))
+```
+
+Vemos que la muestra 6 sale fuera de los límites de control, por lo que procedemos a eliminarla
+
+```{r}
+datos1 <- datos[-fuera,]
+```
+
+### Segundo estudio de la variabilidad
+
+```{r}
+q2 <- qcc(data = datos1,type = "R",center = Rm,std.dev = sigma)
+plot(q2)
+```
+
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que el gráfico está bajo control.
+
+## Estudio de la media
+
+Vamos a usar el gráfico Xbar
+
+```{r}
+q3 <- qcc(data = datos1,type = "xbar",center = mu,std.dev = sigma)
+plot(q3)
+```
+
+```{r}
+(reordenar <- which(q3$violations==1))
+```
+
+Eliminamos la muestra en la posición 5
+
+```{r}
+fuera <- eliminar(fuera = fuera,reordenar = reordenar)
+datos2 <- datos[-fuera,]
+```
+
+
+### Segundo estudio de la media
+
+```{r}
+q4 <- qcc(data = datos2,type = "xbar",center = mu,std.dev = sigma)
+plot(q4)
+```
+
+```{r}
+which(q4$violations==1)
+which(q4$violations==4)
+```
+
+Vemos que las muestras 18 y 19, incumplen la norma 4, por tanto el proceso está fuera de control, vamos a comprobar esto viendo las rachas.
+
+```{r}
+(y <- (q4$statistics>mu)*1)
+```
+
+```{r}
+rr <- runs.test(x = y,alternative = "left.sided",threshold = 0.5,pvalue = "exact",plot = T)
+```
+
+Vemos que tenemos una racha de 9.
+
+El gráfico está fuera de control, por lo que no podemos dar estimaciones de Xmedia y S.
+
+Tampoco tiene sentido estudiar la capacidad del proceso.
+
+# Enunciado 4
+
+> Después de haber finalizado con éxito el enunciado 1
+Se incorporan 20 muestras más. Ya no son muestras de prueba, Debe comprobar si el gráfico está, o no, bajo control.
+En caso de estar bajo control, indicar el porcentaje de muestas que caen fuera de los límites de especificación dados en el enunciado 1
+En caso de estar fuera de control, indicar que muestas son.
+
+Vamos a copiar el enunciado 1, para que no haya problema a la hora de usar luego los datos.
+
+```{r}
+datos <- read.csv2("C:/Users/jsm01/Downloads/datossp041.txt", header=FALSE)
+datos <- datos[,-1]
+datos <- t(datos)
+```
+
+## Estudio de la variabilidad
+
+### Primer estudio de la variabilidad
+
+Cómo el tamaño de las muestras es menor que 10, por tanto vamos a usar el gráfico R
+
+```{r}
+q1 <- qcc(data = datos,type = "R")
+plot(q1)
+```
+
+```{r}
+which(q1$violations==1)
+fuera <- 13
+datos1 <- datos[-fuera,]
+```
+
+Vemos que la muestra 13 está fuera de los límites de control, por lo que la hemos eliminado.
+
+### Segundo estudio de la variabilidad
+
+```{r}
+q2 <- qcc(data = datos1,type = "R")
+plot(q2)
+```
+
+
+```{r}
+(reordenar <- which(q2$violations==1))
+```
+
+Vemos que la muestra 8 está fuera de los lñimites de control por lo que la eliminamos.
+
+```{r}
+fuera <- eliminar(fuera = fuera,reordenar = reordenar)
+datos2 <- datos[-fuera,]
+```
+
+### Tercera inspección de la variabilidad
+
+```{r}
+q3 <- qcc(data = datos2,type = "R")
+plot(q3)
+```
+
+```{r}
+which(q3$violations==1)
+which(q3$violations==4)
+```
+
+Vemos que está bajo control, por lo que podemos pasar a estudiar la media.
+
+## Estudio de la media
+
+### Primera inspeccion de la media
+
+En este caso vamos a usar el gráfico XBar.
+
+```{r}
+q4 <- qcc(data = datos2,type = "xbar")
+plot(q4)
+```
+
+```{r}
+(reordenar <- which(q4$violations==1))
+```
+
+Vemos que la muestra 13 está fuera de los límites de control, por lo que procedemos a eliminarla
+
+```{r}
+fuera <- eliminar(fuera = fuera,reordenar = reordenar)
+datos3 <- datos[-fuera,]
+```
+
+### Segunda inspeccion de la media
+
+
+```{r}
+q5 <- qcc(data = datos3,type = "xbar")
+plot(q5)
+```
+
+```{r}
+which(q5$violations==1)
+which(q5$violations==4)
+```
+
+Vemos que el gráfico está bajo control, vamos a volver a graficar el R con los últimos datos.
+
+```{r}
+q6 <- qcc(data = datos3,type = "R")
+plot(q6)
+```
+
+## Resumen de ambos estudios
+
+```{r}
+summary(q5)
+```
+
+```{r}
+summary(q6)
+```
+
+
+Vemos que ambas desviaciones coinciden. 
+
+## Capacidad del proceso
+
+```{r}
+objetivo <- 83
+LIE <- 83-0.2
+LSE <- 83+0.2
+
+pq<-processCapability(q5, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+```{r}
+summary(pq)
+```
+
+Vemos que la capacidad del proceso es 0.694 < 1 por tanto el proceso no es capáz, se producirán muchas unidades fuera de los límites de especificación acordados.
+
+```{r}
+sum(pq$exp)*100
+```
+
+## Cargado de datos
+
+Tenemos que los datos finales del primer enunciados están nombrados como datos3.
+
+```{r}
+datos <- read.csv2("C:/Users/jsm01/Downloads/datossp044.txt", header=FALSE)
+datos <- datos[,-1]
+datos_nuevos <- t(datos)
+```
+
+
+## Estudio de la variabilidad
+
+### Primera inspección de la variabilidad
+
+```{r}
+q7 <- qcc(data = datos3,type = "R",newdata = datos_nuevos)
+plot(q7)
+```
+
+```{r}
+which(q7$violations==1)
+```
+
+Vemos que hay muchas muestras fuera de los limites de control, además parece que para estos nuevos datos, los límites han cambiado, vamos a contrastarlo.
+
+```{r}
+x=q7$statistics  # R1
+y=q7$newstats # R2
+t.test (x, y, alternative = "less" )
+```
+
+Vemos que podemos rechazar la hipótesis nula de igualdad, por lo que el valor de Rmedia ha cambiado en los nuevos datos.
+
+Por tanto vamos a realizar el estudio solo con los datos nuevos.
+
+## Estudio de la variabilidad datos nuevos
+
+```{r}
+q8 <- qcc(data = datos_nuevos,type = "R")
+plot(q8)
+```
+
+```{r}
+which(q8$violations==1)
+which(q8$violations==4)
+```
+
+
+
+
+vemos que el gráfico está bajo control.
+
+
+## Estudio de la media de los nuevos datos
+
+```{r}
+q9 <- qcc(data = datos_nuevos,type = "xbar")
+plot(q9)
+```
+
+```{r}
+which(q9$violations==1)
+which(q9$violations==4)
+```
+
+Vemos que también está bajo control.
+
+## Capacidad del proceso
+
+
+```{r}
+objetivo <- 83
+LIE <- 83-0.2
+LSE <- 83+0.2
+
+pq<-processCapability(q9, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+```{r}
+summary(pq)
+```
+
+Vemos que la capacidad del proceso es  0.38 < 1 por tanto el proceso no es capáz, se producirán muchas unidades fuera de los límites de especificación acordados.
+
+```{r}
+sum(pq$exp)*100
+```

@@ -1,0 +1,568 @@
+---
+title: "SP10_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("FrF2")    # Cargamos la librería FrF2 para poder ejecutar la función FrF2()
+library("unrepx")  # Cargamos la librería unrepx para poder ejecutar la función yates(), entre otras.
+library("lmtest")  # Cargamos la librería lmtest para poder realizar el contraste de Breusch-Pagan.
+library("equatiomatic")
+```
+
+
+# Enunciado 1
+
+>Considerando el experimento de la rapidez de filtración del Ejemplo 9-2 (de los apuntes). El diseño original constaba de una réplica de un diseño 2^4. En ese estudio, los efectos principales A, C, y D y las interacciones AC y AD, resultaron distintos de cero (significativos). Ahora regresando a este experimento se simulará lo que habría ocurrido de haberse corrido una semifracción (2^4-1) del diseño 2^4, en vez del factorial completo.
+Se utilizará el diseño 2^(4-1) con I=ABCD
+
+## a)   Crear el diseño y añadir los datos en orden estándar
+
+Empezamos cargando los datos
+
+```{r}
+trata <- c("(1)",	"a",	"ab",	"abc",	"ac",	"b"	,"bc"	,"c")
+datos <- c(45	,100,	65,	96,	60,	45,	80,	75)
+(df <- data.frame(trata,datos))
+```
+
+Ahora creamos el enunciado de la froma que nos indica el enunciado el cual tiene D = ABC
+
+```{r}
+Tabla <- FrF2(nruns = 2^3, gen = "ABC", randomize = F)                                   # Establecemos randomize = F para obtener el órden estándar.  
+Tabla 
+```
+
+
+Reordenamos al orden estándar los datos para poder añadirlos al diseño:
+
+```{r}
+secuencia = c("(1)",tolower(names(yates(rep(0,2^3))))) # Creamos la secuencia de factores en orden estándar
+df = df[match(secuencia, df[,1]),]  # Reordenamos el dataframe al orden estándar
+df  # Lo visualizamos
+```
+
+Vemos que ya los tenemos en el orden estandar, por lo que los añadimos
+
+```{r}
+Tabla <- add.response(design = Tabla,response = df[,2])
+colnames(Tabla)[ncol(Tabla)] = "Y"
+Tabla
+```
+
+## b)   ¿Cuál es dicha resolución?.
+
+Miramos los alias del diseño factorial.
+
+```{r}
+summary(Tabla)  # Devuelve información sobre los alias, entre otras cosas.
+```
+
+Vemos que se corresponde con una Resolución IV, ya que los efectos principales forman estructura con los de orden tres y los de orden dos con los de orden dos.
+
+Nótese que en esta resolución sigue habiendo alias entre efectos principales e interacciones de 3 factores así como entre interacciones de dos factores e interacciones de dos factores.
+
+La estructura completa de alias viene dada por las siguientes igualdades:
+
+**Generador del diseño:** D = ABC
+
+**Ecuación Generatriz:** I = ABCD
+
+**Alias de un factor con interacciones de 3 factores:** A = BCD, B = ACD, C = ABD, D = ABC
+
+**Alias de interacciones de 2 factores con interacciones de 2 factores:** AB = CD, AC = BD, AD = BC
+
+## c)    Utilizando el método MEDA ver que efectos son significativos.
+
+Estudiaremos qué efectos son significativos a través del método MEDA.
+
+```{r}
+efectos = yates(Tabla$Y)  # Calculamos los efectos de cada factor e interacción.
+MEDA<-2*mad(efectos)  # Calculamos la MEDA.
+MEDA   # Devolvemos el valor de la MEDA calculada.
+```
+Obtenemos una MEDA de 14.826 Consideraremos significativos a aquellos factores e interacciones cuyo efecto sea mayor a la MEDA obtenida. Comprobamos los valores de cada efecto.
+
+```{r}
+efectos  # Devolvemos los valores de los efectos.
+sort(abs(efectos[which(abs(efectos)>MEDA)]))
+```
+
+Observamos que el factor A así como las interacciónes AC, BC, ABC son significativas, mientras que el resto no lo son al tomar valores en valor absoluto menores a 14.826
+
+
+## d)   Comprobar efectos significativos utilizando el gráfico de Probabilidad Normal (Normal Plot) o de Probabilidad seminormal (Half Normal Plot).
+
+Verificamos el anterior análisis de manera gráfica. Comenzamos con el gráfico seminormal.
+
+```{r}
+hnplot(efectos, half=T, ID=MEDA)   # Realiza el gráfico seminormal.
+```
+
+De nuevo, observamos que el factor A así como las interacciónes AC, BC, ABC son significativas al situarse a la derecha de la recta.
+
+
+Continuamos con el gráfico de Pareto.
+
+```{r}
+parplot(efectos)    # Realiza el gráfico parplot.
+abline(h=MEDA, col="red")    # Colocamos una línea indicadora de la posición de la MEDA.
+```
+
+De nuevo, observamos que el factor A así como las interacciónes AC, BC, ABC son significativas al situarse por encima de la línea roja representativa de la MEDA.
+
+## e)   Modelo de regresión.
+
+Vamos a crear el modelo de regresión correspondiente a los factores significativos que hemos calculado mediante el método MEDA, pero despreciando las interacciones superior a 2
+
+```{r}
+modelo <- lm(Y ~(A + B + C + A:C + B:C),Tabla)
+summary(modelo)
+```
+
+Vemos que queda de la forma
+
+```{r}
+extract_eq(modelo)
+extract_eq(modelo,use_coefs = TRUE)
+```
+
+
+```{r}
+summary(modelo)$r.squared  # Devuelve el coeficiente de determinación del modelo lineal.
+```
+
+El coeficiente de determinación $R^2$ del modelo de regresión lineal es 0.8220739
+
+Finalmente, ofrecemos los valores predichos.
+
+```{r}
+Tabla_predicciones = Tabla[,-c(4)]  # Tomamos los 4 factores significativos del diseño factorial.
+Tabla_predicciones = cbind(Tabla_predicciones,fitted.values(modelo))  # Añadimos las predicciones.
+Tabla_predicciones  # Visualilzamos la tabla de predicciones final.
+```
+
+
+## f)    Estudio de los Residuos.
+
+Por último, estudiamos los supuestos del modelo lineal; esto es, la normalidad y homocedasticidad de los residuos.
+
+Comenzamos contrastando la normalidad gráficamente.
+
+```{r}
+qqnorm(modelo$residuals)  # Realiza el gráfico de probabilidad normal.
+qqline(modelo$residuals, col = "red")   # Añade la recta de cuantiles.
+```
+
+Vemos que el ajuste es bastante malo. Procedemos a evaluar su significación con el test de Shapiro.
+
+```{r}
+shapiro.test(modelo$residuals)  # Realiza el contraste de Shapiro.
+```
+
+Obtenemos un p-valor de 0.003007, que es menor al nivel de significación $\alpha=0.05$ habitual, por lo que rechazamos la hipótesis nula de normalidad.
+
+Por último estudiamos la homocedasticidad de los residuos mediante el contraste de Breusch-Pagan.
+
+```{r}
+bptest(modelo)  # Realiza el contraste de Breusch-Pagan.
+```
+Obtenemos un p-valor de 0.1562, superior al nivel de significación 0.05 habitual, por lo que no rechazamos la hipótesis nula de homocedasticidad.
+
+Concluimos que podemos descartar que los residuos cumplan las hipótesis del modelo; esto es, $\varepsilon\sim N(0,\sigma^2)$. 
+
+Por tanto el modelo no se puede usar al no cumplir los residuos con la hipótesis básica de Normalidad
+
+
+# Enunciado 2
+
+>Con el objetivo de mejorar el rendimiento del proceso de manufactura de un circuito integrado, en un diseño 2^(5-1) se investigan cinco factores del proceso. Los cinco factores fueron:
+A=apertura del diafragma (pequeña, grande), 
+B=Tiempo de exposición (20% abajo y 20% arriba del nominal), 
+C=Tiempo de revelado (30 y 45 segundos),
+D=dimensión de la pantalla (pequeña, grande)
+y E=tiempo de corrosión selectiva (14.5 y 15.5 segundos).
+En la tabla se muestran los resultados de las observaciones. Para el diseño factorial fraccionado el generador ha sido I=ABCDE.
+
+
+## a)   Crear el diseño y añadir los datos en orden estándar
+
+Tenemos un diseño $2^4$ ya que el factor E se ha convertido de la forma E=ABCD, vamos a crear el diseño, pero antes vamos a cargar los datos que nos da el enunciado.
+
+
+```{r}
+trata <- c("(1)","a","b","c","d","ab","ac","ad","bc","bd","cd","abc","abd","acd","bcd","abcd")
+datos <- c(8,9,34,16,6,52,22,10,45,30,15,60,50,21,44,63)
+(df <- data.frame(trata,datos))
+```
+
+Ahora creamos el diseño
+
+```{r}
+Tabla <- FrF2(nruns = 2^4, gen = "ABCD", randomize = F)                                   # Establecemos randomize = F para obtener el órden estándar.  
+Tabla 
+```
+
+
+Reordenamos al orden estándar los datos para poder añadirlos al diseño:
+
+```{r}
+secuencia = c("(1)",tolower(names(yates(rep(0,2^4))))) # Creamos la secuencia de factores en orden estándar
+df = df[match(secuencia, df[,1]),]  # Reordenamos el dataframe al orden estándar
+df  # Lo visualizamos
+```
+
+Vemos que ya los tenemos en el orden estandar, por lo que los añadimos
+
+```{r}
+Tabla <- add.response(design = Tabla,response = df[,2])
+colnames(Tabla)[ncol(Tabla)] = "Y"
+Tabla
+```
+
+
+## b)   ¿Cuál es dicha resolución?.
+
+Miramos los alias del diseño factorial.
+
+```{r}
+summary(Tabla)  # Devuelve información sobre los alias, entre otras cosas.
+```
+
+Obtenemos que no hay alias entre los efectos principales y las interacciones de dos factores. Esto corresponde a una resolución V.
+
+Nótese que en esta resolución sigue habiendo alias entre efectos principales e interacciones de 4 factores así como entre interacciones de dos factores e interacciones de tres factores.
+
+La estructura completa de alias viene dada por las siguientes igualdades:
+
+**Generador del diseño:** E = ABCD
+
+**Ecuación Generatriz:** I = ABCDE
+
+**Alias de un factor con interacciones de 4 factores:** A = BCDE, B = ACDE, C = ABDE, D = ABCE, E = ABCD
+
+**Alias de interacciones de 2 factores con interacciones de 3 factores:** AB = CDE, AC = BDE, AD = BCE, AE = BCD, BC = ADE, BD = ACE, BE = ACD, CD = ABE, CE = ABD
+
+
+## c)    Utilizando el método MEDA ver que efectos son significativos.
+
+
+Estudiaremos qué efectos son significativos a través del método MEDA.
+
+```{r}
+efectos = yates(Tabla$Y)  # Calculamos los efectos de cada factor e interacción.
+MEDA<-2*mad(efectos)  # Calculamos la MEDA.
+MEDA   # Devolvemos el valor de la MEDA calculada.
+```
+Obtenemos una MEDA de 2.2239. Consideraremos significativos a aquellos factores e interacciones cuyo efecto sea mayor a la MEDA obtenida. Comprobamos los valores de cada efecto.
+
+```{r}
+efectos  # Devolvemos los valores de los efectos.
+sort(efectos[which(abs(efectos)>MEDA)],decreasing = TRUE)
+```
+
+Observamos que los factores A, B y C así como la interacción AB son significativas, mientras que el resto no lo son al tomar valores menores a 2.2239.
+
+
+## d)   Comprobar efectos significativos utilizando el gráfico de Probabilidad Normal (Normal Plot) o de Probabilidad seminormal (Half Normal Plot).
+
+
+Verificamos el anterior análisis de manera gráfica. Comenzamos con el gráfico seminormal.
+
+```{r}
+hnplot(efectos, half=T, ID=MEDA)   # Realiza el gráfico seminormal.
+```
+
+De nuevo, observamos que los factores A, B y C así como la interacción AB son significativos al situarse a la derecha de la recta.
+
+Continuamos con el gráfico de Pareto.
+
+```{r}
+parplot(efectos)    # Realiza el gráfico parplot.
+abline(h=MEDA, col="red")    # Colocamos una línea indicadora de la posición de la MEDA.
+```
+
+De nuevo, observamos que los factores A, B y C así como las interacciones AB son significativos al situarse por encima de la línea roja representativa de la MEDA.
+
+### Addendum Contraste ANOVA
+
+Procedemos a realizar el contraste ANOVA despreciando interacciones de orden superior a 2.
+
+```{r}
+modelo<-with(Tabla, lm(Y~(A+B+C+D)^2))   # Crea el modelo lineal.
+anova<-aov(modelo)    # Crea la tabla ANOVA.
+summary(anova)        # Muestra los resultados del contraste ANOVA.
+```
+Verificamos que los factores A, B y C así como la interacción AB son significativos al alcanzar un p-valor menor a 0.05 en el contraste ANOVA.
+
+Por ello, dado que ni el factor D ni ninguna se sus interacciones son significativas, nos desharemos del factor D del modelo. Realizamos de nuevo el contraste ANOVA para los factores e interacciones restantes despreciando interacciones de orden superior a 2.
+
+
+```{r}
+modelo2<-with(Tabla, lm(Y~(A+B+C)^2))   # Crea el modelo lineal.
+anova<-aov(modelo2)    # Crea la tabla ANOVA.
+summary(anova)        # Muestra los resultados del contraste ANOVA.
+```
+Comprobamos que los factores A, B y C así como la interacción AB siguen siendo significativos, de modo que elaboraremos el modelo de regresión con ellos y descartaremos las interacciones AC y BC.
+
+## e)   Modelo de regresión.
+
+
+```{r}
+modelo3<-with(Tabla, lm(Y~(A+B+C+A:B)))   # Crea el modelo lineal.
+anova<-aov(modelo3)    # Crea la tabla ANOVA.
+summary(anova)        # Muestra los resultados del contraste ANOVA.
+```
+
+Por tanto el modelo que obtenemos es el siguiente:
+
+```{r}
+coefficients(modelo3)
+extract_eq(modelo3)
+extract_eq(modelo3,use_coefs = TRUE)
+```
+
+
+```{r}
+summary(modelo3)$r.squared  # Devuelve el coeficiente de determinación del modelo lineal.
+```
+
+El coeficiente de determinación $R^2$ del modelo de regresión lineal es 0.9951.
+
+Finalmente, ofrecemos los valores predichos.
+
+```{r}
+Tabla_predicciones = Tabla[,-c(4,5,6)]  # Tomamos los 3 factores significativos del diseño factorial.
+Tabla_predicciones = cbind(Tabla_predicciones,fitted.values(modelo3))  # Añadimos las predicciones.
+Tabla_predicciones  # Visualilzamos la tabla de predicciones final.
+```
+## f)    Estudio de los Residuos.
+
+Por último, estudiamos los supuestos del modelo lineal; esto es, la normalidad y homocedasticidad de los residuos.
+
+Comenzamos contrastando la normalidad gráficamente.
+
+```{r}
+qqnorm(modelo3$residuals)  # Realiza el gráfico de probabilidad normal.
+qqline(modelo3$residuals, col = "red")   # Añade la recta de cuantiles.
+```
+
+Los residuos no parecen distanciarse mucho de la recta de cuantiles de la normal, aunque el ajuste tampoco es perfecto. Procedemos a evaluar su significación con el test de Shapiro.
+
+```{r}
+shapiro.test(modelo3$residuals)  # Realiza el contraste de Shapiro.
+```
+
+Obtenemos un p-valor de 0.632, que es mayor al nivel de significación $\alpha=0.05$ habitual, por lo que no rechazamos la hipótesis nula de normalidad.
+
+Por último estudiamos la homocedasticidad de los residuos mediante el contraste de Breusch-Pagan.
+
+```{r}
+bptest(modelo3)  # Realiza el contraste de Breusch-Pagan.
+```
+Obtenemos un p-valor de 0.5307, superior al nivel de significación 0.05 habitual, por lo que no rechazamos la hipótesis nula de homocedasticidad.
+
+Concluimos que no podemos descartar que los residuos cumplan las hipótesis del modelo; esto es, $\varepsilon\sim N(0,\sigma^2)$.
+
+
+
+# Enunciado 3
+
+>Se observa que los componentes manufacturados en cierto proceso de moldeo por inyección presentan contracción (“encogimiento”) excesiva. Esto causa problemas en las operaciones de montaje posteriores al moldeo. Un equipo de mejoramiento de la calidad ha decidido emplear un experimento diseñado a fin de estudiar el proceso de moldeo por inyección y tratar de reducir la contracción. El equipo decide investigar seis factores:
+temperatura del molde (A), 
+rapidez de alimentación (B), 
+tiempo de retención (C), 
+tiempo de ciclo (D)
+tamaño de la compuesta (E)
+y presión de retención (F),
+cada uno a dos niveles, con el objetivo de descubrir la forma en que cada factor influye en la contracción y algo sobre cómo interactúan los factores.
+
+
+> El equipo decide emplear el diseño factorial fraccionado de dos niveles y 16 observaciones. En la tabla siguiente se muestra los datos para la contracción. Se han utilizado como generadores I=ABCE e I=BCDF
+
+## a)   Crear el diseño y añadir los datos en orden estándar
+
+Empezamos añadiendo los datos
+
+```{r}
+trata <- c("(1)","a","b","c","d","ab","ac","ad","bc","bd","cd","abc","abd","acd","bcd","abcd")
+Y <- c(6,10,32,4,8,60,15,12,26,34,16,60,60,5,37,52)
+```
+
+Ahora creamos el diseño que es de la forma $2^{(6-2)}$ con los generadores I=ABCE e I=BCDF o lo que es lo mismo E=ABC y F=BCD
+
+```{r}
+Tabla <- FrF2(nruns = 2^4, gen = c("ABC","BCD"), randomize = F)                                   # Establecemos randomize = F para obtener el órden estándar.  
+Tabla 
+```
+
+Ahora ordenamos los datos para poder añadirlos al diseño
+
+```{r}
+df <- data.frame(trata,Y)
+secuencia = c("(1)",tolower(names(yates(rep(0,2^4))))) # Creamos la secuencia de factores en orden estándar
+df = df[match(secuencia, df[,1]),]  # Reordenamos el dataframe al orden estándar
+df  # Lo visualizamos
+```
+
+Los añadimos al diseño
+
+```{r}
+Tabla <- add.response(design = Tabla,response = df[,2])
+colnames(Tabla)[ncol(Tabla)] = "Y"
+Tabla
+```
+
+Ya tenemos el diseño creado y con los datos en el orden adecuado.
+
+
+## b)   ¿Cuál es dicha resolución?.
+
+Miramos los alias del diseño factorial.
+
+```{r}
+summary(Tabla)  # Devuelve información sobre los alias, entre otras cosas.
+```
+
+Vemos que ningún efecto principal forma estructura de alias con otro factor o con interacciones de dos factores, pero si tenemos algunas interacciones de orden dos que forman estructura con otras de orden dos:
+
+La estructura completa de alias viene dada por las siguientes igualdades:
+
+**Generador del diseño:** E=ABC y F=BCD
+
+**Ecuación Generatriz:** I = ABCE y I = BCDF
+
+**Alias de un factor con interacciones de 3 factores:** A = BCE, B = ACE, C = ABE, D = BCF, E = ABC, F = BCD
+
+**Alias de interacciones de 2 factores con interacciones de 2 factores:** AB = CE, AC = BE, AD = EF, AE = BC = DF, AF = DE, BD = CF, BF = CD.
+
+Por tanto vemos que se corresponde con una resolución IV.
+
+
+## c)    Utilizando el método MEDA ver que efectos son significativos.
+
+Estudiaremos qué efectos son significativos a través del método MEDA.
+
+```{r}
+efectos = yates(Tabla$Y)  # Calculamos los efectos de cada factor e interacción.
+MEDA<-2*mad(efectos)  # Calculamos la MEDA.
+MEDA   # Devolvemos el valor de la MEDA calculada.
+```
+Obtenemos una MEDA de 3.7065 Consideraremos significativos a aquellos factores e interacciones cuyo efecto sea mayor a la MEDA obtenida. Comprobamos los valores de cada efecto.
+
+```{r}
+efectos  # Devolvemos los valores de los efectos.
+sort(abs(efectos[which(abs(efectos)>MEDA)]), decreasing = TRUE)
+paste0(names(sort(abs(efectos[which(abs(efectos)>MEDA)]), decreasing = TRUE)),collapse = ";")
+```
+
+Observamos que los factores A, B así como las interacciones AB,AD,ACD son significativas, mientras que el resto no lo son al tomar valores en valor absoluto menores a 3.7065.
+
+## d)   Comprobar efectos significativos utilizando el gráfico de Probabilidad Normal (Normal Plot) o de Probabilidad seminormal (Half Normal Plot).
+
+
+Verificamos el anterior análisis de manera gráfica. Comenzamos con el gráfico seminormal.
+
+```{r}
+hnplot(efectos, half=T, ID=MEDA)   # Realiza el gráfico seminormal.
+```
+
+De nuevo, observamos que los factores A, B así como las interacciones AB,AD,ACD son significativas al situarse a la derecha de la recta.
+
+Continuamos con el gráfico de Pareto.
+
+```{r}
+parplot(efectos)    # Realiza el gráfico parplot.
+abline(h=MEDA, col="red")    # Colocamos una línea indicadora de la posición de la MEDA.
+```
+
+De nuevo, observamos que los factores A, B así como las interacciones AB,AD,ACD son significativas al situarse por encima de la línea roja representativa de la MEDA.
+
+### Addendum Contraste ANOVA
+
+Procedemos a realizar el contraste ANOVA despreciando interacciones de orden superior a 2 aunque una de ellas ha salido significativa
+
+```{r}
+modelo<-with(Tabla, lm(Y~(A+B+C+D)^2))   # Crea el modelo lineal.
+anova<-aov(modelo)    # Crea la tabla ANOVA.
+summary(anova)        # Muestra los resultados del contraste ANOVA.
+```
+Verificamos que los factores A, B y C así como la interacción AB y AD son significativos al alcanzar un p-valor menor a 0.05 todas menos AD que seria significativa para 0.1 en el contraste ANOVA.
+
+## e)   Modelo de regresión.
+
+Vamos a crear el modelo de regresión correspondiente a los factores significativos que hemos calculado mediante el método MEDA, pero despreciando las interacciones superior a 2
+
+```{r}
+modelo <- lm(Y ~(A + B + D + A:B + A:D),Tabla)
+anova<-aov(modelo)    # Crea la tabla ANOVA.
+summary(anova)        # Muestra los resultados del contraste ANOVA.
+```
+
+Vemos que queda de la forma
+
+```{r}
+coefficients(modelo)
+extract_eq(modelo)
+extract_eq(modelo,use_coefs = TRUE)
+```
+
+
+```{r}
+summary(modelo)$r.squared  # Devuelve el coeficiente de determinación del modelo lineal.
+```
+
+El coeficiente de determinación $R^2$ del modelo de regresión lineal es 0.9811358
+
+Finalmente, ofrecemos los valores predichos.
+
+```{r}
+Tabla_predicciones = Tabla[,-c(3,5,6)]  # Tomamos los 4 factores significativos del diseño factorial.
+Tabla_predicciones = cbind(Tabla_predicciones,fitted.values(modelo))  # Añadimos las predicciones.
+Tabla_predicciones  # Visualilzamos la tabla de predicciones final.
+```
+
+
+## f)    Estudio de los Residuos.
+
+Por último, estudiamos los supuestos del modelo lineal; esto es, la normalidad y homocedasticidad de los residuos.
+
+Comenzamos contrastando la normalidad gráficamente.
+
+```{r}
+qqnorm(modelo$residuals)  # Realiza el gráfico de probabilidad normal.
+qqline(modelo$residuals, col = "red")   # Añade la recta de cuantiles.
+```
+
+Vemos que el ajuste no es malo pero tampoco es perfecto. Procedemos a evaluar su significación con el test de Shapiro.
+
+```{r}
+shapiro.test(modelo$residuals)  # Realiza el contraste de Shapiro.
+```
+
+Obtenemos un p-valor de 0.1917, que es mayor al nivel de significación $\alpha=0.05$ habitual, por lo que  no rechazamos la hipótesis nula de normalidad.
+
+Por último estudiamos la homocedasticidad de los residuos mediante el contraste de Breusch-Pagan.
+
+```{r}
+bptest(modelo)  # Realiza el contraste de Breusch-Pagan.
+```
+Obtenemos un p-valor de 0.1453, superior al nivel de significación 0.05 habitual, por lo que no rechazamos la hipótesis nula de homocedasticidad.
+
+Concluimos que no podemos  descartar que los residuos cumplan las hipótesis del modelo; esto es, $\varepsilon\sim N(0,\sigma^2)$. 
+
+
+

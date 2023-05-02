@@ -1,0 +1,597 @@
+---
+title: "SP08_PRACTICAS"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("FrF2")    # Cargamos la librería FrF2 para poder ejecutar la función FrF2()
+library("unrepx")  # Cargamos la librería unrepx para poder ejecutar la función yates(), entre otras.
+library("lmtest")  # Cargamos la librería lmtest para poder realizar el contraste de Breusch-Pagan.
+library("equatiomatic")
+```
+
+# Enunciado 1
+
+>Una empresa de componentes electrónicos desea saber que factores afectan a la variabilidad de sus resistencias eléctricas. Dicha variabilidad se mide con la diferencia entre el valor real y el nominal (en Ohmios). Se realiza un primer experimento con 4 resistencias de valor nominal 100 W. Los factores que se controlan son:
+Factor A: Temperatura:    15ºC     60ºC
+Factor B: Vida del componente:  sin usar      1000 horas de uso
+
+
+## 1) Creación del diseño Factorial
+
+Vamos a cargar los datos, que además ya están en orden estandar.
+
+Tenemos dos réplicas.
+
+```{r}
+Y <- c(3,15,20,34,2,15,21,36)
+```
+
+Creamos el diseño
+
+```{r}
+Diseno <- FrF2(nfactors = 2,nruns = 2^2,factor.names = list(A = c(-1,1),                                                B = c(-1,1)),
+               replications = 2,randomize = FALSE)
+Diseno
+```
+
+Le añadimos ahora los datos
+
+```{r}
+(Tabla <- add.response(design = Diseno,response = Y))
+```
+
+## 2) Cálculo de la Tabla ANOVA
+
+Como estamos con un diseño $2^2$ no podemos despreciar ninguna interaccion
+
+```{r}
+modelo<-with(Tabla, lm(Y~(A+B)^2))   # Crea el modelo lineal.
+anova<-aov(modelo)    # Crea la tabla ANOVA.
+summary(anova)        # Muestra los resultados del contraste ANOVA.
+```
+
+Vemos que salen significativos los factores principales A,B
+
+## 3) Gráficas factores significativos DanielPLot()
+
+```{r}
+DanielPlot(fit = Tabla, half = T, code = T, autolab = FALSE)
+```
+
+Vemos que el factor más signifactivo es el B seguido del A.
+
+## 4) Gráfica efectos medios MEPlot()
+
+```{r}
+MP <- MEPlot(Tabla)
+diff(MP)
+```
+
+Vemos que las pendientes son pronunciadas y parecidas, aunque la del factor B parece un poco mayor.
+
+Concuerda con lo visto en la Anova
+
+## 5) Gráfica interacciones IAPlot()
+
+```{r}
+IA <- IAPlot(Tabla)
+```
+
+No se cruzan las rectas, por lo que no parece que la interación sea significativa.
+
+Por tanto tras el análisis gráfico, llegamos a la misma conclusión que con el ANOVA.
+
+## 6) Modelo de regresión
+
+Usamos solo los factores significativos, es decir el A y el B
+
+```{r}
+Modelo<-with(Tabla, lm(Y~(A+B)))   # Crea el modelo lineal.
+```
+
+
+```{r}
+(sm <- summary(Modelo))
+```
+
+```{r}
+coefficients(Modelo)
+```
+
+
+```{r}
+extract_eq(Modelo)
+extract_eq(Modelo,use_coefs = TRUE)
+
+```
+
+## 7) Cáculo R^2
+
+```{r}
+sm$r.squared
+```
+
+## 8) Estudio de los residuos
+
+```{r}
+residuos <- sm$residuals 
+qqnorm(residuos)
+qqline(residuos, col = "Red")
+```
+
+
+```{r}
+shapiro.test(residuos)
+```
+
+No podemos rechazar la hipótesis nula de NORMALIDAD
+
+
+## 9) Cálculo de las predicciones (usando el modelo de regresión)
+
+
+```{r}
+fv <- Modelo$fitted.values
+df = data.frame(I=fv[1:4],II=fv[5:8])  # Creamos la tabla de valores agrupados.
+rownames(df)=c("(1)","a","b","ab")
+df 
+```
+
+# Enunciado 2
+
+> Se usa una máquina para hacer ranuras de localización en una tarjeta de circuitos impresos. El nivel de vibración en la superficie de la tarjeta cuando se hacen las ranuras se considera una fuente principal de variación dimensional de las ranuras. Se piensa que dos factores influyen en la vibración: el tamaño de las ranuras (A) y la velocidad de corte (B). Se seleccionan los tamaños de las ranuras (1/16 y 1/8 de pulgada) y dos velocidades( 40 y 90 rpm), y se hacen ranuras en 4 tarjetas con cada conjunto de condiciones que se muestran abajo. La variable de respuesta es la vibración medida como el vector resultante de 3 acelerómetros (x, y, z) en cada tarjeta de prueba
+
+## 1) Creación del diseño Factorial
+
+Vamos a cargar los datos, que además ya están en orden estandar.
+
+Tenemos cuatro réplicas.
+
+```{r}
+Y <- c(18.2,27.2,15.9,41,18.9,24,14.5,43.9,12.9,22.4,15.1,36.3,14.4,22.5,14.2,39.9)
+```
+
+```{r}
+Diseno <- FrF2(nfactors = 2,nruns = 2^2,factor.names = list(A = c(-1,1),
+    B = c(-1,1)), replications = 4,randomize = FALSE)
+Diseno
+```
+
+Le añadimos ahora los datos
+
+```{r}
+(Tabla <- add.response(design = Diseno,response = Y))
+```
+
+## 2) Cálculo de la Tabla ANOVA
+
+```{r}
+modelo<-with(Tabla, lm(Y~(A+B)^2))   # Crea el modelo lineal.
+anova<-aov(modelo)    # Crea la tabla ANOVA.
+summary(anova)        # Muestra los resultados del contraste ANOVA.
+```
+
+Vemos que salen significativos los factores principales A,B y su interacción AB.
+
+## 3) Gráficas factores significativos DanielPLot()
+
+```{r}
+DanielPlot(fit = Tabla, half = T, code = T, autolab = FALSE)
+```
+
+Vemos que el factor más signifactivo es el A seguido del AB y por último el B.
+
+## 4) Gráfica efectos medios MEPlot()
+
+```{r}
+MP <- MEPlot(Tabla)
+diff(MP)
+```
+
+Vemos que la pendiente del factor A, es mayor a la del factor B, algo que cuadra con el gráfico anterior.
+
+ Y además concuerda con lo visto en la Anova
+
+## 5) Gráfica interacciones IAPlot()
+
+```{r}
+IA <- IAPlot(Tabla)
+diff(IA)
+```
+
+Se cruzan las rectas, por lo que parece que la interación es significativa.
+
+Por tanto tras el análisis gráfico, llegamos a la misma conclusión que con el ANOVA.
+
+## 6) Modelo de regresión
+
+Usamos solo los factores significativos, en este caso todos
+
+```{r}
+Modelo<-with(Tabla, lm(Y~(A+B)^2))   # Crea el modelo lineal.
+```
+
+
+```{r}
+(sm <- summary(Modelo))
+```
+
+```{r}
+coefficients(Modelo)
+```
+
+
+```{r}
+extract_eq(Modelo)
+extract_eq(Modelo,use_coefs = TRUE)
+```
+
+## 7) Cáculo R^2
+
+```{r}
+sm$r.squared
+```
+
+## 8) Estudio de los residuos
+
+```{r}
+residuos <- sm$residuals 
+qqnorm(residuos)
+qqline(residuos, col = "Red")
+```
+
+
+```{r}
+shapiro.test(residuos)
+```
+
+No podemos rechazar la hipótesis nula de NORMALIDAD
+
+
+## 9) Cálculo de las predicciones (usando el modelo de regresión)
+
+
+```{r}
+fv <- Modelo$fitted.values
+df = data.frame(I=fv[1:4],II=fv[5:8],III=fv[9:12],IV=fv[13:16])  # Creamos la tabla de valores agrupados.
+rownames(df)=c("(1)","a","b","ab")
+df 
+```
+
+
+# Enunciado 3
+
+>Un bacteriólogo está interesado en los efectos de dos medios de cultivo diferentes y dos tiempos  diferentes sobre el crecimiento de un virus particular. Realiza seis réplicas del diseño 2^2, haciendo las corridas de manera aleatoria. Analizar los datos del crecimiento viral que se presentan en la tabla y sacar las conclusiones apropiadas. Analizar la adecuación del modelo.
+Los valores en la tabla se muestran en el orden estándar.
+
+
+## 1) Creación del diseño Factorial
+
+```{r}
+
+Diseno <- FrF2(nfactors = 2,nruns = 4,factor.names = list(A = c(-1,1),
+                                                          B = c(-1,1)),
+               replications = 6,randomize = FALSE)
+```
+```{r}
+Y <- c(21,25,37,31,22,26,39,34,23,24,38,29,28,25,38,33,20,29,35,30,26,27,36,35)
+(Tabla <- add.response(design = Diseno,response = Y))
+```
+
+Ya tenemos el diseño factorial creado
+
+## 2) Cálculo de la Tabla ANOVA
+
+```{r}
+Modelo <- lm(Tabla$Y~(Tabla$A+Tabla$B)^2)
+(Anova <- summary(aov(Modelo)))
+(SSE1<-round(Anova[[1]]$`Sum Sq`[length(Anova[[1]]$`Sum Sq`)],2))
+```
+
+Vemos que tanto el factor B como su interacción con A son significativos, por lo que no podemos eliminar ningún factor.
+
+## 3) Gráficas factores significativos DanielPLot()
+
+```{r}
+DanielPlot(fit = Tabla, half = T, code = T, autolab = F)
+```
+
+Vemos que el factor más signifactivo es el B, como podríamos haber inferido de la tabla anova.
+
+## 4) Gráfica efectos medios MEPlot()
+
+```{r}
+MP <- MEPlot(Tabla)
+diff(MP)
+```
+
+
+## 5) Gráfica interacciones IAPlot()
+
+```{r}
+IA <- IAPlot(Tabla)
+```
+
+## 6) Modelo de regresión
+
+```{r}
+(sm <- summary(Modelo))
+```
+```{r}
+coefficients(Modelo)
+```
+
+
+```{r}
+library(equatiomatic)
+extract_eq(Modelo)
+extract_eq(Modelo,use_coefs = TRUE)
+
+```
+
+## 7) Cáculo R^2
+
+```{r}
+sm$r.squared
+```
+
+## 8) Estudio de los residuos
+
+```{r}
+residuos <- sm$residuals 
+qqnorm(residuos)
+qqline(residuos, col = "Red")
+```
+
+```{r}
+shapiro.test(residuos)
+```
+
+No podemos rechazar la hipótesis nula de NORMALIDAD
+
+
+## 9) Cálculo de las predicciones (usando el modelo de regresión)
+
+
+```{r}
+fv <- Modelo$fitted.values
+df = data.frame(I=fv[1:4],II=fv[5:8],III=fv[9:12],IV=fv[13:16],V=fv[17:20],VI=fv[21:24])  # Creamos la tabla de valores agrupados.
+rownames(df)=c("(1)","a","b","ab")
+df 
+```
+
+
+# Enunciado 4
+
+> Un ingeniero industrial empleado por una compañía de refrescos está interesado en los efectos de dos tipos diferentes de botellas de 32 onzas (946 ml) sobre el tiempo de entrega de cajas de 12 botellas de producto. Los dos tipos de botellas son de vidrio y de plástico. Se usan dos empleados para realizar una tarea que consiste en mover 40 cajas del producto 50 pies en una plataforma de carga estándar y acomodarlas en un estante de venta. Se hacen 4 réplicas de un diseño factorial 22,  y los tiempos observados se muestran en tabla. Analizar los datos y sacar las conclusiones apropiadas. Analizar y comentar la adecuación del modelo.
+Los valores en la tabla se muestran en el orden estándar.
+
+## 1) Creación del diseño Factorial
+
+```{r}
+
+Diseno <- FrF2(nfactors = 2,nruns = 4,factor.names = list(Empleado = c(-1,1),
+                                                          Botella = c(-1,1)),
+               replications = 4,randomize = FALSE)
+```
+
+```{r}
+Y <- c(5.12,6.65,4.95,5.28,4.89,6.24,4.95,4.91,4.98,5.49,4.27,4.75,5,5.55,4.25,4.71)
+(Tabla <- add.response(design = Diseno,response = Y))
+```
+
+
+## 2) Cálculo de la Tabla ANOVA
+
+```{r}
+Modelo <- lm(Y~(Empleado+Botella)^2,Tabla)
+(Anova <- summary(aov(Modelo)))
+```
+
+Vemos que salen significativos tanto el factor Empleado como Botella, pero no la interacción
+
+
+## 3) Gráficas factores significativos DanielPLot()
+
+```{r}
+(DP <- DanielPlot(fit = Tabla, half = T, code = T, autolab = FALSE))
+```
+
+## 4) Gráfica efectos medios MEPlot()
+
+```{r}
+MP <- MEPlot(Tabla)
+abs(diff(MP))
+```
+
+## 5) Gráfica interacciones IAPlot()
+
+```{r}
+IA <- IAPlot(Tabla)
+```
+
+## 6) Modelo de regresión
+
+```{r}
+summary(Modelo)
+```
+Vemos que la interaccion no sale significativa, por lo que podemos despreciarla
+
+```{r}
+Modelo2 <- lm(Y ~(Empleado+Botella),Tabla)
+(sm2 <- summary(Modelo2))
+```
+
+```{r}
+coefficients(Modelo2)
+```
+
+
+```{r}
+library(equatiomatic)
+extract_eq(Modelo2)
+extract_eq(Modelo2,use_coefs = TRUE)
+
+```
+
+## 7) Cáculo R^2
+
+```{r}
+sm2$r.squared
+```
+
+## 8) Estudio de los residuos
+
+```{r}
+residuos <- sm2$residuals 
+qqnorm(residuos)
+qqline(residuos, col = "Red")
+```
+
+```{r}
+shapiro.test(residuos)
+```
+
+Rechazamos la Hipótesis nula de Normalidad por lo que nuestros residuos no satisfacen las hipótesis iniciales y por tanto el modelo no se puede usar.
+
+
+## 9) Cálculo de las predicciones (usando el modelo de regresión)
+
+
+```{r}
+fv <- Modelo2$fitted.values
+df = data.frame(I=fv[1:4],II=fv[5:8],III=fv[9:12],IV=fv[13:16])  # Creamos la tabla de valores agrupados.
+rownames(df)=c("(1)","a","b","ab")
+df 
+```
+
+DE TODAS FORMAS COMO NO HAY NORMALIDAD NO SE PUEDE USAR.
+
+
+# Enunciado 5
+
+>Un ingeniero industrial empleado por una compañía de refrescos también estuvo interesado en la diferencia en la fatiga potencial que resulta de los tipos de botellas. Como una medida de la cantidad de esfuerzo requerido se midió el aumento del ritmo cardiaco (pulso) inducido por la tarea. Los resultados se presentan a continuación. Analizar los datos y sacar conclusiones y analizar y comentar la ecuación del modelo.
+
+
+## 1) Creación del diseño Factorial
+
+```{r}
+library(FrF2)
+
+Diseno <- FrF2(nfactors = 2,nruns = 4,factor.names = list(Empleado = c(-1,1),
+                                                          Botella = c(-1,1)),
+               replications = 4,randomize = FALSE)
+```
+
+```{r}
+Y <- c(39,20,44,13,45,13,35,10,58,16,42,16,35,11,21,15)
+(Tabla <- add.response(design = Diseno,response = Y))
+```
+
+Ya tenemos el diseño factorial creado
+
+## 2) Cálculo de la Tabla ANOVA
+
+```{r}
+Modelo <- lm(Y ~(Empleado + Botella)^2,Tabla)
+(Anova <- summary(aov(Modelo)))
+```
+
+Vemos que el factor Empleado es el único significativo.
+
+
+## 3) Gráficas factores significativos DanielPLot()
+
+```{r}
+DanielPlot(fit = Tabla, half = T, code = T, autolab = FALSE)
+```
+
+Vemos que el factor más signifactivo es el A(Empleado), como bien habiamos visto en la Tabla
+
+## 4) Gráfica efectos medios MEPlot()
+
+```{r}
+MP <- MEPlot(Tabla)
+```
+
+
+## 5) Gráfica interacciones IAPlot()
+
+```{r}
+IA <- IAPlot(Tabla)
+```
+
+## 6) Modelo de regresión
+
+```{r}
+(sm <- summary(Modelo))
+```
+
+vemos que solo es significativo, el factor Empleado, por lo que vamos a crear el nuevo Modelo solo con el factor significativo.
+
+```{r}
+Modelo2 <- lm(Y ~Empleado, Tabla)
+(sm1 <- summary(Modelo2))
+```
+
+
+```{r}
+coefficients(Modelo2)
+```
+
+
+```{r}
+library(equatiomatic)
+extract_eq(Modelo2)
+extract_eq(Modelo2,use_coefs = TRUE)
+
+```
+
+## 7) Cáculo R^2
+
+```{r}
+sm1$r.squared
+```
+
+## 8) Estudio de los residuos
+
+```{r}
+residuos <- sm1$residuals 
+qqnorm(residuos)
+qqline(residuos, col = "Red")
+```
+
+```{r}
+shapiro.test(residuos)
+```
+
+No podemos rechazar la hipótesis nula de NORMALIDAD
+
+
+## 9) Cálculo de las predicciones (usando el modelo de regresión)
+
+
+```{r}
+fv <- Modelo2$fitted.values
+df = data.frame(I=fv[1:4],II=fv[5:8],III=fv[9:12],IV=fv[13:16])  # Creamos la tabla de valores agrupados.
+rownames(df)=c("(1)","a","b","ab")
+df 
+```
+
+
+
+

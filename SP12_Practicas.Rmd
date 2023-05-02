@@ -1,0 +1,403 @@
+---
+title: "SP12_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)  # Sentencia necesaria para compilar el html de Rmarkdown.
+library("psych")                    # Cargamos la librería psych para poder ejecutar la función KMO().
+library("Hmisc")                    # Cargamos la librería Hmisc para poder ejecutar la función rcorr().
+library("PerformanceAnalytics")     # Cargamos la librería Hmisc para poder ejecutar la función chart.Correlation().
+library("corrplot")                 # Cargamos la librería Hmisc para poder ejecutar la función corrplot().
+```
+
+
+
+
+# Enunciado 1
+
+> **Ciencias y Letras**
+
+> Los siguientes datos corresponden a una clase de 20 alumnos de 3º de la ESO para las asignaturas de Matemáticas (MAT), Física y Química (FYQ), Biología y Geología (BYG), Lengua Castellana y Literatura (LCL), Ciencias Sociales, Geografía e Historia (SGH) e Inglés (ING).
+Siempre ha parecido existir una diferencia entre las asignaturas, en dos grandes bloques ciencias y letras.
+
+> Realice, pues, un análisis para ver si esto se cumple, y si se pueden reagrupar estas 6 asignaturas en dos grandes bloques o factores (Ciencias y Letras). Y conteste las cuestiones que se muestran más abajo:
+
+```{r}
+datos <- read.csv("C:/Users/jsm01/Downloads/AF_datos_Ciencias_Letras (1).csv")   # Cargamos los datos.
+datos = datos[,-1]                 # Eliminamos la columna de alumnos de los datos.
+datos   # Los visualizamos.
+```
+
+### 1. ¿Qué tipo de análisis es?
+
+En el enunciado se pide comprobar si se pueden agrupar las 6 asignaturas en dos bloques o factores, por lo que el análisis que debemos realizar es el análisis factorial, que pretende hallar un nuevo conjunto de variables, menor en número que las variables originales, que exprese lo que es común a esas variables. 
+
+Si la hipótesis de ciencias y letras es cierta, el análisis factorial debería encontrar dos bloques: matemáticas, física y química, y biología por un lado y lengua castellana, inglés y ciencias sociales por otro. Las variables de cada bloque deberán tener características comunes que justifiquen que pertenezcan a un mismo bloque.
+
+
+### 2. Calcule y valore el determinante de la matriz de correlación.
+
+
+```{r}
+matriz_cor = cor(datos)   # Calcula la matriz de correlación.
+det(matriz_cor)           # Halla su determinante.
+```
+
+Vemos un determinante cercano a 0 pero sin ser 0, lo cual nos indica la independencia lineal de las variables.
+
+### 3. Calcule el valor de KMO y valore su resultado.
+
+```{r}
+kmo = KMO(matriz_cor)    # Calcula el coeficiente KMO de Kaiser-Meyer-Olkin.
+kmo$MSA                  # Devolvemos el coeficiente KMO.
+```
+
+Obtenemos un coeficiente KMO de 0.7161303, que es ligeramente mayor a 0.7, por lo que la recomendación sobre el uso de un análisis factorial es mediano. No se desaconseja la realización de un análisis factorial pero tampoco se incentiva encarecidamente.
+
+### 4. Calcule y valore el test de esfericidad de Bartlet.
+
+En este apartado realizamos el test de esfericidad de Bartlet para contrastar la hipótesis nula $H_0: R=I$, donde $R$ es la matriz de correlaciones; esto es, contrastamos $H_0: \rho_{ij}=0\quad \forall i\neq j$, donde $\rho_{ij}$ es el coeficiente de correlación entre las variables $i$ y $j$.
+
+Bajo la hipótesis nula, y suponiendo que los datos provienen de una distribución normal, se tiene que
+
+$$
+\chi^2_0 = -\left(n-1-\frac{2v+5}{6}\right)\log|R|\sim\chi^2([v^2-v]/2).
+$$
+
+Procedemos a realizar el contraste con un nivel de significación $\alpha = 0.05$, rechazando la hipótesis nula para valores significativamente altos del estadístico $\chi^2_0$.
+
+```{r}
+n = nrow(datos)   # Definimos el número de muestras.
+v = ncol(datos)   # Definimos el número de variables.
+chi2 = -(n-1-(2*v+5)/6)*log(det(matriz_cor))  # Calculamos el estadístico de contraste chi^2.
+gl = (v^2-v)/2   # Definimos los grados de libertad del contraste.
+pchisq(chi2,gl,lower.tail=FALSE)  # Obtenemos el p-valor del contraste.
+```
+
+Obtenemos un p-valor muy próximo a 0, por lo que rechazamos la hipótesis nula. Existe al menos un par de variables cuyo coeficiente de correlación no es nulo.
+
+### 5. Realice, al menos, una visualización de la matriz de correlaciones. Coméntela.
+
+```{r}
+matriz_cor    # Visualizamos la matriz de correlaciones.
+```
+Si dividimos esta matriz en cuatro bloques (en realidad tres por la simetría de la matriz), detectaremos lo siguiente:
+
+```{r}
+matriz_cor[1:3,1:3]  # Visualizamos el bloque izquierdo superior.
+matriz_cor[4:6,4:6]  # Visualizamos el bloque derecho inferior.
+```
+Observamos en el bloque izquierdo superior y en el bloque derecho infeiror correlaciones muy altas, por encima de 0.74 en valor absoluto. Estos bloques corresponden a las correlaciones entre las variables matemáticas, física y química y biología (a partir de ahora variables de ciencias) por un lado y entre lengua castellana, inglés y ciencias sociales (a partir de ahora variables de letras) por otro respectivamente.
+
+```{r}
+matriz_cor[4:6,1:3]  # Visualizamos el bloque izquierdo inferior.
+matriz_cor[1:3,4:6]  # Visualizamos el bloque derecho superior.
+```
+
+Vemos en este bloque izquierdo inferior (igual al bloque derecho superior) que las correlaciones son muy bajas, nunca superando 0.4 en valor absoluto. Estas correlaciones son entre variables de ciencas y variables de letras.
+
+Podríamos justificar observando estos bloques que tendría sentido agrupar las asignaturas en dos grupos en función de si presentan altas correlaciones entre sí dentro de cada grupo y bajas
+entre grupos. Así, la asignación de las variables en dos grupos: ciencias y letras, sería una asignación justificada.
+
+Concluimos este apartado visualizando la matriz de correlaciones de manera más estéticia a través de funciones específicas para ello.
+
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+chart.Correlation(datos, histogram=TRUE, pch=19)
+```
+```{r}
+MM = rcorr(as.matrix(datos)) # Calculamos la matriz de correlaciones y p-valores.
+round(MM$P,3)  # Devuelve la matriz de p-valores.
+```
+
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+corrplot(MM$r, method= "number", type="upper", order = "original", tl.col="black", tl.srt=0, sig.level= 0.05)
+```
+
+Observamos en estas últimas tres gráficas el grado de significación de los coeficientes de correlación individuales.
+
+Si nos fijamos en el último gráfico que muestra la diagonal superior de los coeficientes de correlación observamos que los coeficientes entre las variables de ciencias así como los de las variables de letras muestran valores positivos altos. En contraste, los coeficientes de correlación entre variables de ciencias y letras muestran valores bajos. Podemos ver en la segunda gráfica que los primeros son significativos y los segundos no, al tener p-valores superiores a 0.05.
+
+Vemos reforzada por tanto nuestra hipótesis inicial de dos grupos de asignaturas: ciencias y letras, al presentar cada grupo correlación interna significativa y no presentar correlación significativa con otros grupos.
+
+Nótese que las correlaciones iguales a 1 se refieren a correlaciones de una variable con ella misma.
+
+### 6. Calcule los valores própios, así como la variabilidad explicada por cada factor.
+
+```{r}
+autovalores = eigen(matriz_cor)$values     # Calcula los valores propios de la matriz de correlación.
+round(autovalores,3)   # Devolvemos los valores propios.
+round(autovalores/v,3)   # Devuelve los valores propios de la matriz de correlación.
+```
+Observamos que el primer factor explicaría el 60% de la variabilidad y el segundo factor explicaría el 30% de la variabilidad. El siguiente factor que más variabilidad explicaría sería del 4%, lo cual parece insuficiente, por lo que a priori parecería apropiado escoger solo los dos últimos factores que conjuntamente explicarían algo más del 90% de la variabilidad.
+
+### 7. ¿Cuántos factores se eligen y por qué? y diga la variabilidad total explicada.
+
+```{r}
+colores <- c("Pink","Green")
+bp <- barplot(autovalores, col = colores[(autovalores>1)+1])  # Visualizamos la gráfica de extracción de factores.
+abline(h=1,col = "red")
+text(x=bp,y=autovalores-0.1,labels = round(autovalores,3),col="blue")
+
+NumFactores <- sum(autovalores > 1)      # Calculamos el número de factores del modelo.
+(componentes <- sum(autovalores > 1))
+
+varianzas <- round(autovalores/v,2)      # Calculamos la proporción de varianza explicada total por los factores.
+(VarPorcen <- sum(autovalores[autovalores>1])/sum(autovalores)*100)
+```
+
+Obtenemos de esta gráfica que deberemos extraer los dos primeros factores ya que sus autovalores superan la unidad (criterio de Kaiser), con varianza total explicada del 90,93%, como habíamos adelantado en el anterior apartado.
+
+### 8. Realice el análisis sin rotación. Grafique sus resultados.
+
+Realizaremos el análisis sin rotación.
+
+
+```{r, warning=FALSE}
+rotacion<-"none"
+AF<-factanal(datos, factors =2, rotation =rotacion,scores = "regression")
+plot(loadings(AF)[,1:2], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))  # Grafica los coeficientes de cada variable presentes en la combinación lineal de cada factor.
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AF)[,1:2],labels=rownames(loadings(AF)[,1:2]),cex=.9, col="blue")
+```
+
+Observamos en la gráfica anterior y en esta tabla que el primer factor da un peso importante a las asignaturas de ciencias mientras que el segundo factor se lo otorga a las de letras, diferenciando un grupo de asignaturas para cada factor.
+
+
+### 9. Realice el anális con rotación Varimax. Grafique sus resultados. Y comente las diferencias o mejoras con respecto a no rotar.
+
+```{r, warning=FALSE}
+rotacion<-"varimax"
+AF<-factanal(datos, factors =2, rotation =rotacion,scores = "regression")
+plot(loadings(AF)[,1:2], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AF)[,1:2],labels=rownames(loadings(AF)[,1:2]),cex=.9, col="blue")
+```
+
+Observamos en esta segunda gráfica correspondiente a la asignación de coeficientes en los factores con rotación que estos coeficientes se acercan más a los ejes verticales y horizontales, marcando más la diferencia entre los dos grupos de asignaturas ciencias y letras, que tendrían un menor o mayor peso en cada factor de manera respectiva.
+
+
+### 10. Si es posible, realice un gráfico biplot y coméntelo.
+
+```{r}
+fit <- principal(datos , nfactors=2, rotate="varimax")
+biplot(fit,col= c("red", "blue"))
+fit$loadings
+```
+
+Un biplot permite mostrar gráficamente la información de las filas y las columnas (variables) de una matriz de datos multivariantes. Las variables se representan mediante líneas rectas. Los puntos representan a cada uno de los alumnos con sus correspondientes valores de X e Y en función de los pesos que tenga cada uno de los factores.
+
+
+Observamos en este gráfico los dos agrupamientos de asignaturas, en este caso según las observaciones. Vemos dos claros grupos: las asignaturas de ciencias y las de letras.
+
+
+### Addendum: Puntuaciones factoriales
+
+Concluimos esta práctica mostrando los coeficientes o puntuaciones factoriales, corregidas para que el conjunto de variables de cada factor sean una partición de todas las variables.
+
+```{r}
+F <- AF$scores
+F <- as.matrix(round(loadings(AF)[,1:2],3))  # Obtenemos las puntuaciones factoriales iniciales.
+f <- abs(F)>0.5  # Eliminamos aquellas puntuaciones menores a 0.5.
+f[f==T] <- 1
+F*f       # Visualizamos las puntuaciones factoriales finales.
+```
+Terminamos afirmando la existencia de dos grupos de asignaturas distintos: ciencias y letras, basándonos en los dos factores construidos, agrupando cada uno asignaturas de un tipo.
+
+
+# Enunciado 2
+
+>Los siguientes datos corresponden a una clase de la asignatura CdC. En el archivo se muestran los siguientes campos:
+    ExP1:         Es la nota del 1er parcial.
+    ExP2:         Es la nota del 2do parcial.
+    TK:            Es la nota media de los Kahoots.
+    TT:            Es la nota media de los Talleres.
+    TP:            Es la nota media de las prácticas.
+    Teoria:       Es el porcentaje de asistentencia a las sesiones de teoría.
+    Practicas:   Es el porcentaje de asistencia a las sesiones de prácticas.
+    Curso:       Es la nota final del curso (hasta el momento).
+    Dias:          Es el número de días que el alumno se ha conectado a Aula Global.
+    P_Dias:      Es el porcentaje de días que el alumnos se ha conectado a Aula Global desde que empezó el curso.
+    M:             Es el número de Clics en Aula Global (Magistral)
+    C:              Es el número de Clics en Aula Global (Reducido)
+
+
+
+Realice, pues, un análisis para ver  si se pueden reagrupar estas notas en bloques o dimensiones. Y conteste las cuestiones que se muestran más abajo:
+
+```{r}
+datos <-  read.csv("C:/Users/jsm01/Downloads/CdC_Notas_AF_N01.csv")  # Cargamos los datos.    
+datos   # Los visualizamos.
+```
+
+### 1. ¿Qué tipo de análisis es?
+
+Estamos ante un análisis factorial explotario en el que vamos a intentar dividir los datos anteriores en distintos bloques los cuales no conocemos ni tenemos una idea previa, esto es lo que lo diferencia del analisis factorial confirmatorio.
+
+### 2. Calcule y valore el determinante de la matriz de correlación.
+
+Antes tenemos que quedarnos solo con las variables que sean independientes linealmente, podemos observar que las variables Dias y P_Dias, por su propia definición van a ser la misma, toda la información de una va a estar contenida en la otra, por lo que nos tendremos que deshacer de una de ellas, además la variable curso, es una combinación lineal de varias variables también contenidas en el modelo, por lo que nos podemos deshacer de ella también.
+
+```{r}
+nomvar <- names(datos)
+grep("P_Dias",nomvar)
+grep("Curso",nomvar)
+```
+Por tanto vemos que tenemos que eliminar las columnas 8 y 10.
+
+```{r}
+datos <- datos[,-c(8,10)]
+```
+
+```{r}
+matriz_cor <- cor(datos)
+det(cor(datos))
+```
+
+### 3. Calcule el valor de KMO y valore su resultado.
+
+```{r}
+kmo = KMO(cor(datos))    # Calcula el coeficiente KMO de Kaiser-Meyer-Olkin.
+kmo$MSA                  # Devolvemos el coeficiente KMO.
+```
+
+Obtenemos un coeficiente KMO de  0.6752152, que es menor a 0.7 pero mayor que 0.6  por lo que la recomendación sobre el uso de un análisis factorial es mediocre. No se desaconseja la realización de un análisis factorial pero tampoco se recomienda.
+
+### 4. Calcule y valore el test de esfericidad de Bartlet.
+
+En este apartado realizamos el test de esfericidad de Bartlet para contrastar la hipótesis nula $H_0: R=I$, donde $R$ es la matriz de correlaciones; esto es, contrastamos $H_0: \rho_{ij}=0\quad \forall i\neq j$, donde $\rho_{ij}$ es el coeficiente de correlación entre las variables $i$ y $j$.
+
+Bajo la hipótesis nula, y suponiendo que los datos provienen de una distribución normal, se tiene que
+
+$$
+\chi^2_0 = -\left(n-1-\frac{2v+5}{6}\right)\log|R|\sim\chi^2([v^2-v]/2).
+$$
+
+Procedemos a realizar el contraste con un nivel de significación $\alpha = 0.05$, rechazando la hipótesis nula para valores significativamente altos del estadístico $\chi^2_0$.
+
+```{r}
+n = nrow(datos)   # Definimos el número de muestras.
+v = ncol(datos)   # Definimos el número de variables.
+(chi2 = -(n-1-(2*v+5)/6)*log(det(matriz_cor)))  # Calculamos el estadístico de contraste chi^2.
+gl = (v^2-v)/2   # Definimos los grados de libertad del contraste.
+pchisq(chi2,gl,lower.tail=FALSE)  # Obtenemos el p-valor del contraste.
+```
+
+Obtenemos un p-valor muy próximo a 0, por lo que rechazamos la hipótesis nula. Existe al menos un par de variables cuyo coeficiente de correlación no es nulo.
+
+### 5. Realice, al menos, una visualización de la matriz de correlaciones. Coméntela.
+
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+chart.Correlation(datos, histogram=TRUE, pch=19)
+```
+
+```{r}
+MM = rcorr(as.matrix(datos)) # Calculamos la matriz de correlaciones y p-valores.
+round(MM$P,3)  # Devuelve la matriz de p-valores.
+```
+
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+corrplot(MM$r, method= "number", type="upper", order = "original", tl.col="black", tl.srt=0, sig.level= 0.05)
+```
+
+No parece haber una estructura clara en las correlaciones, vemos que por lo general son casi todas bastante bajas exceptuando las de abajo a la derecha, las cuales representa la correlación entre el número de dias que nos hemos conectado a aula global y los clicks que tenemos en la misma, por lo que tiene sentido que esta sea positiva y bastante alta.
+
+### 6. Calcule los valores própios, así como la variabilidad explicada por cada factor.
+
+```{r}
+autovalores = eigen(matriz_cor)$values     # Calcula los valores propios de la matriz de correlación.
+round(autovalores,3)   # Devolvemos los valores propios.
+round(autovalores/v,3)   # Devuelve los valores propios de la matriz de correlación.
+```
+Observamos que con los tres primeros factores explicamos casi un 65% de la variabilidad, recayendo el peso principalmente en el primer factor, que explica casi el 37%.
+
+
+
+### 7. ¿Cuántos factores se eligen y por qué? y diga la variabilidad total explicada.
+
+```{r}
+colores <- c("Pink","Green")
+bp <- barplot(autovalores, col = colores[(autovalores>1)+1])  # Visualizamos la gráfica de extracción de factores.
+abline(h=1,col = "red")
+text(x=bp,y=autovalores-0.1,labels = round(autovalores,3),col="blue")
+
+NumFactores <- sum(autovalores > 1)      # Calculamos el número de factores del modelo.
+(componentes <- sum(autovalores > 1))
+
+varianzas <- round(autovalores/v,2)      # Calculamos la proporción de varianza explicada total por los factores.
+(VarPorcen <- sum(autovalores[autovalores>1])/sum(autovalores)*100)
+```
+
+Obtenemos de esta gráfica que deberemos extraer los tres primeros factores ya que sus autovalores superan la unidad (criterio de Kaiser), con varianza total explicada del 64.86%, como habíamos adelantado en el anterior apartado.
+
+### 8. Realice el análisis sin rotación. Grafique sus resultados.
+
+Realizaremos el análisis sin rotación.
+
+
+```{r, warning=FALSE}
+rotacion<-"none"
+AF<-factanal(datos, factors =3, rotation =rotacion,scores = "regression")
+plot(loadings(AF)[,1:3], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))  # Grafica los coeficientes de cada variable presentes en la combinación lineal de cada factor.
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AF)[,1:3],labels=rownames(loadings(AF)[,1:3]),cex=.9, col="blue")
+```
+
+Vemos dos bloques separados y luego una variables sola arriba, por lo que no podemos sacar ninguna conclusión, habría que probar algún tipo de rotación
+
+```{r}
+(ValorCutoff1<-0.23)
+print(AF$loadings, digits = 3, cutoff = ValorCutoff1, sort = FALSE)
+```
+
+### 9. Realice el análisis con rotación Varimax y con Oblimin. Grafique sus resultados. Y comente las diferencias o mejoras con respecto a no rotar.
+
+```{r, warning=FALSE}
+rotacion<-"varimax"
+AFV<-factanal(datos, factors =3, rotation =rotacion,scores = "regression")
+plot(loadings(AFV)[,1:3], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AFV)[,1:3],labels=rownames(loadings(AFV)[,1:3]),cex=.9, col="blue")
+```
+
+Observamos en esta segunda gráfica correspondiente a la asignación de coeficientes en los factores con rotación que estos coeficientes se acercan más a los ejes verticales y horizontales, y en el caso del tercer grupo al central, por lo que parece que ha sido bastante beneficiosa la rotación.
+
+```{r}
+(ValorCutoff2<-0.23)
+print(AFV$loadings, digits = 3, cutoff = ValorCutoff2, sort = FALSE)
+```
+
+#### 9.2 Rotación oblimin
+
+Esta se trata de una rotación oblicua, hasta dónde he encontrado no está incluida en el paquete que estamos usando, en su lugar vamos a usar otro tipo de rotación oblicua llamada ProMax.
+
+```{r, warning=FALSE}
+rotacion<-"promax"
+AFO<-factanal(datos, factors =3, rotation =rotacion,scores = "regression")
+plot(loadings(AFO)[,1:3], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AFO)[,1:3],labels=rownames(loadings(AFO)[,1:3]),cex=.9, col="blue")
+```
+
+```{r}
+(ValorCutoff3<-0.2)
+print(AFO$loadings, digits = 3, cutoff = ValorCutoff3, sort = FALSE)
+```
+
+Vemos que el mejor resultado de los 3 parece darse con la rotación VariMax, no obstante la varianza explicada acumulada es la misma en sin rotación y en varimax y un poquito menor la rotación promax, por lo que nos quedaríamos con la rotación Varimax que es la que nos ofrece los tres grupos más diferenciados.

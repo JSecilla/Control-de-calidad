@@ -1,0 +1,391 @@
+---
+title: "SP13"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)  # Sentencia necesaria para compilar el html de Rmarkdown.
+library("psych")                    # Cargamos la librería psych para poder ejecutar la función KMO().
+library("Hmisc")                    # Cargamos la librería Hmisc para poder ejecutar la función rcorr().
+library("PerformanceAnalytics")     # Cargamos la librería Hmisc para poder ejecutar la función chart.Correlation().
+library("corrplot")                 # Cargamos la librería Hmisc para poder ejecutar la función corrplot().
+library("haven")
+```
+
+# Hecho en clase
+
+## 1) Cargue el archivo 3229.sav utilizando el siguiente código.
+          library(haven) # Import and Export 'SPSS', 'Stata' and 'SAS' Files
+          datos<-read_spss(file=paste0(ruta,"3229.sav"))
+
+```{r}
+datos <- read_sav("C:/Users/jsm01/Downloads/3229.sav")
+```
+
+## 2) Seleccione, sólo, las columnas correspondientes a las preguntas 5 y 16 del cuestionario. ¿qué tipo de análisis es?
+
+Vamos a hacer un análisis factorial confirmatorio, pero primero vamos a seleccionar solo las columnas que nos interesan
+
+```{r}
+datos <- datos[,c("P5_1","P5_2","P5_3","P5_4","P5_5","P5_6","P5_7","P5_8","P5_9","P5_10","P16_1","P16_2","P16_3","P16_4","P16_5","P16_6","P16_7","P16_8","P16_9")]
+dim(datos)
+```
+
+Vamos a eliminar las filas que tengan datos faltantes
+
+```{r}
+datos <- na.omit(datos)
+dim(datos)
+```
+
+Vemos que de 2489 filas que teniamos antes, nos hemos quedado con 2094, no obstante tenemos observaciones suficientes para realizar el analisis.
+
+## 3) Calcular la matriz de correlaciones
+
+```{r}
+(matriz_cor = cor(datos))   # Calcula la matriz de correlación.
+```
+
+## 4) Calcular el determinate de la matriz de correlaciones
+
+```{r}
+det(matriz_cor)           # Halla su determinante.
+```
+
+Vemos que tenemos un determinante muy cercano a 0 pero que no es 0, por tanto nos indica altas intercorrelaciones entre las variables, pero manteniendo la independencia lineal entre ellas.
+
+## 5) Realizar el test de Bartlett
+
+En este apartado realizamos el test de esfericidad de Bartlet para contrastar la hipótesis nula $H_0: R=I$, donde $R$ es la matriz de correlaciones; esto es, contrastamos $H_0: \rho_{ij}=0\quad \forall i\neq j$, donde $\rho_{ij}$ es el coeficiente de correlación entre las variables $i$ y $j$.
+
+Bajo la hipótesis nula, y suponiendo que los datos provienen de una distribución normal, se tiene que
+
+$$
+\chi^2_0 = -\left(n-1-\frac{2v+5}{6}\right)\log|R|\sim\chi^2([v^2-v]/2).
+$$
+
+Procedemos a realizar el contraste con un nivel de significación $\alpha = 0.05$, rechazando la hipótesis nula para valores significativamente altos del estadístico $\chi^2_0$.
+
+```{r}
+n = nrow(datos)   # Definimos el número de muestras.
+v = ncol(datos)   # Definimos el número de variables.
+chi2 = -(n-1-(2*v+5)/6)*log(det(matriz_cor))  # Calculamos el estadístico de contraste chi^2.
+gl = (v^2-v)/2   # Definimos los grados de libertad del contraste.
+pchisq(chi2,gl,lower.tail=FALSE)  # Obtenemos el p-valor del contraste.
+```
+
+Obtenemos un p-valor igual a 0, por lo que rechazamos la hipótesis nula. Existe al menos un par de variables cuyo coeficiente de correlación no es nulo.
+
+## 6) Calcular el índice KMO
+
+```{r}
+kmo = KMO(matriz_cor)    # Calcula el coeficiente KMO de Kaiser-Meyer-Olkin.
+kmo$MSA                  # Devolvemos el coeficiente KMO.
+```
+
+Obtenemos un coeficiente KMO de 0.8638112, que esta entre 0.8 y 0.9, por lo que la recomendación sobre el uso de un análisis factorial es meritorio. Se puede realizar el analisis factorial.
+
+
+## 7) realizar dos visualizaciones de la matriz de correlaciones. chart.Correlation() y corrplot()
+
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+chart.Correlation(datos, histogram=TRUE, pch=19)
+```
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+MM = rcorr(as.matrix(datos)) # Calculamos la matriz de correlaciones y p-valores.
+round(MM$P,3)  # Devuelve la matriz de p-valores.
+corrplot(MM$r, method= "number", type="upper", order = "original", tl.col="black", tl.srt=0, sig.level= 0.05)
+```
+
+Esta segunda gráfica, se puede interpretar mejor que la anterior, vemos como todas las correlaciones son positivas, y las mayores se encuentran entre respuestas de la misma pregunta, principalmente las de la pregunta 16, siendo bastante más baja las intercorrelaciones entre las respuestas de la pregunta 5.
+
+## 8) Calcule los autovalores, así como la variabilidad explicada por cada factor.
+
+```{r}
+autovalores = eigen(matriz_cor)$values     # Calcula los valores propios de la matriz de correlación.
+round(autovalores,3)   # Devolvemos los valores propios.
+round(autovalores/v,3)   # Devuelve los valores propios de la matriz de correlación.
+```
+
+## 9) Cuántos factores se elegirían y cuál sería su varibilidad.
+
+```{r}
+colores <- c("Pink","Green")
+bp <- barplot(autovalores, col = colores[(autovalores>1)+1])  # Visualizamos la gráfica de extracción de factores.
+abline(h=1,col = "red")
+text(x=bp,y=autovalores-0.1,labels = round(autovalores,3),col="blue")
+
+NumFactores <- sum(autovalores > 1)      # Calculamos el número de factores del modelo.
+(componentes <- sum(autovalores > 1))
+
+varianzas <- round(autovalores/v,2)      # Calculamos la proporción de varianza explicada total por los factores.
+(VarPorcen <- sum(autovalores[1:componentes])/sum(autovalores)*100)
+```
+
+Según la grafica anterior, tendríamos que escoger 5 factores, con una varianza total explicada del 55.43%
+
+## 10) Con independencia del resultado anterior tome sólo dos factores y siga con el estudio. (indique varianza explicada)
+
+Nos quedamos con los dos factores que explican una mayor variabilidad, que coincide con los de mayor autovalor.
+
+```{r}
+(VarPorcen <- sum(autovalores[1:2])/sum(autovalores)*100)
+```
+
+Estos dos factores tienen una varianza total explicada del 36.79%
+
+
+## 11) Realice el Análisis Factorial SIN ROTACIÓN.
+
+Realizaremos el análisis sin rotación.
+
+```{r, warning=FALSE}
+rotacion<-"none"
+AF<-factanal(datos, factors = 2, rotation =rotacion,scores = "regression")
+plot(loadings(AF)[,1:2], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))  # Grafica los coeficientes de cada variable presentes en la combinación lineal de cada factor.
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AF)[,1:2],labels=rownames(loadings(AF)[,1:2]),cex=.9, col="blue")
+```
+
+Vemos dos grupos bastante diferenciados, que podemos inferir que son de los dos tipos de pregunta, vemos que el factor 2, le da más peso al grupo de P5 y el factor 1 al grupo de P16.
+
+## 12) Analice las cargas/pesos/saturaciones ¿qué observa?
+
+```{r}
+print(AF$loadings)
+```
+
+Vemos que las P16, apuntan bastante bien al factor1, pero en en el caso del P5, hay varios que apuntan a los dos factores, vamos a subir el umbral, para diferenciarlos mejor.
+
+```{r}
+print(AF$loadings,cutoff = 0.2)
+```
+
+Vemos que ahora cada pregunta apunta solamente a un factor.
+
+
+## 13) Realice el Análisis Factorial con rotación VARIMAX. ¿Qué observa?
+
+
+```{r, warning=FALSE}
+rotacion<-"varimax"
+AF<-factanal(datos, factors =2, rotation =rotacion,scores = "regression")
+plot(loadings(AF)[,1:2], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AF)[,1:2],labels=rownames(loadings(AF)[,1:2]),cex=.9, col="blue")
+```
+
+Vemos que el grupo correspondiente a la pregunta 5, si se ha acercado más al eje correspondiente al factor 1, pero el grupo de la pregunta 16, se ha movido un poco respecto al eje del factor2, por tanto vemos que el ajuste es mejor pero tampoco es perfecto.
+
+## 14) Calcule las puntuaciones (muestre las 20 primeras)
+
+```{r}
+head(AF$scores, 20)
+```
+
+
+# Hecho con el código del profesor.
+
+
+```{r}
+datos <- read_sav("C:/Users/jsm01/Downloads/3229.sav")
+```
+
+
+## 2) Seleccione, sólo, las columnas correspondientes a las preguntas 5 y 16 del cuestionario. ¿qué tipo de análisis es?
+
+```{r}
+NomVar <- names(datos)
+(P5 <- grep("P5_",NomVar))
+(P16 <- grep("P16_",NomVar))
+columnas <- c(P5,P16)
+```
+
+Por tanto las columnas que nos interesan son
+
+```{r}
+paste0(columnas,collapse = ",")
+```
+
+Por tanto
+
+```{r}
+datos <- datos[,columnas]
+```
+```{r}
+dim(datos)
+```
+
+Vemos que tenemos 2489 observaciones en 19 columnas, vamos a quitarles los NA antes de seguir con el análisis
+
+```{r}
+datos <- na.omit(datos)
+dim(datos)
+```
+
+Vemos que nos quedamos con 2094 filas y 19 columnas, ya podemos empezar con el análisis, en este caso con unálisis Factorial.
+
+## 3) Calcular la matriz de correlaciones
+
+```{r}
+mcor<-round(cor(datos),3) # matriz de correlaciones
+knitr::kable(mcor)
+```
+
+
+## 4) Calcular el determinate de la matriz de correlaciones
+
+```{r}
+(detMcor<- round(det(mcor),3))
+```
+
+Vemos que tenemos un determinante muy cercano a 0 pero que no es 0, por tanto nos indica altas intercorrelaciones entre las variables, pero manteniendo la independencia lineal entre ellas.
+
+
+## 5) Realizar el test de Bartlett
+
+```{r}
+testB<-cortest.bartlett(datos)
+(chi2<-round(testB$chisq, 3))
+(pvalor <- round(testB$p.value,3))
+```
+
+## 6) Calcular el índice KMO
+
+```{r}
+kmo.t<-KMO(mcor) # mcor debe ser una matriz de correlaciones
+(IndiceKMO<-round(as.numeric(kmo.t[1]),3))
+
+```
+
+Obtenemos un coeficiente KMO de 0.8638112, que esta entre 0.8 y 0.9, por lo que la recomendación sobre el uso de un análisis factorial es meritorio. Se puede realizar el analisis factorial.
+
+## 7) realizar dos visualizaciones de la matriz de correlaciones. chart.Correlation() y corrplot()
+
+```{r}
+## Matriz de correlaciones visualización
+ MM<-rcorr(as.matrix(datos)) # matriz de correlaciones y nivel de 
+ df1<-MM$P<0.05
+ df1[is.na(df1)] <-TRUE
+(PorcenVarCorrela<-round((((sum(df1)-19)/2)/((361-19)/2))*100,2))
+cplot<- corrplot(MM$r, method="number",type="upper", order="original", tl.col="black", tl.srt=0, sig.level=0.05)
+
+```
+
+```{r, warning=FALSE, error=FALSE, message=FALSE}
+chart.Correlation(datos, histogram=TRUE, pch=19)
+```
+
+
+## 8) Calcule los autovalores, así como la variabilidad explicada por cada factor.
+
+```{r}
+auto<-eigen(mcor) # eigen calcula los autovalores de la matriz de correlación
+
+(autovalores<-round(auto$values,3))
+
+```
+
+## 9) Cuántos factores se elegirían y cuál sería su varibilidad.
+
+```{r}
+(NumFacMayor1<-sum(autovalores>1))
+varianzas<-round(autovalores/length(autovalores), 2)
+(PorcenVarFacMayor1<-cumsum(varianzas)[NumFacMayor1]*100)
+```
+
+## 10) Con independencia del resultado anterior tome sólo dos factores y siga con el estudio. (indique varianza explicada)
+
+```{r}
+(componentes<- sum(autovalores[1:2]>1))
+```
+
+```{r}
+(VarPorcen<-cumsum(varianzas)[componentes]*100)
+```
+
+## 11) Realice el Análisis Factorial SIN ROTACIÓN.
+
+```{r}
+AF<-factanal(datos, factors =2, rotation = "none",scores = "regression")
+rotacion<-"none"
+plot(loadings(AF)[,1:2], type="n", xlim=c(-1,1), ylim=c(-1,1), main=paste0("rotación: ",rotacion))  # Grafica los coeficientes de cada variable presentes en la combinación lineal de cada factor.
+abline(v=0) # Añade el eje vertical.
+abline(h=0) # Añade el eje horizontal.
+text(loadings(AF)[,1:2],labels=rownames(loadings(AF)[,1:2]),cex=.9, col="blue")
+```
+
+## 12) Analice las cargas/pesos/saturaciones ¿qué observa?
+
+```{r}
+(ValorCutoff1<-0.2)
+print(AF$loadings, digits = 3, cutoff = ValorCutoff1, sort = FALSE)
+
+```
+
+## 13) Realice el Análisis Factorial con rotación VARIMAX. ¿Qué observa?
+
+```{r}
+rotacion<-"varimax"
+AFR<-factanal(datos, factors =2, rotation =rotacion,scores = "regression")
+
+```
+
+```{r}
+(ValorCutoff2<-0.163)
+print(AFR$loadings, digits = 3, cutoff = ValorCutoff2, sort = FALSE)
+
+```
+
+## Porcentaje de la mejora de la variabilidad
+
+```{r}
+(PocenVarAumento<-round((0.295/0.295*100)-100,2))
+```
+
+## Rotación Promax
+
+```{r}
+rotacion<-"promax"
+AFP<-factanal(datos, factors =2, rotation =rotacion,scores = "regression")
+AFP
+```
+
+```{r}
+(ValorCutoff3<- 0.131)
+print(AFP$loadings, digits = 3, cutoff = ValorCutoff3, sort = FALSE)
+
+```
+
+
+```{r}
+(PocenVarAumento<-round((0.301/0.295*100)-100,2))
+```
+
+
+## Addendum: Puntuaciones factoriales
+
+Concluimos esta práctica mostrando los coeficientes o puntuaciones factoriales, corregidas para que el conjunto de variables de cada factor sean una partición de todas las variables.
+
+```{r}
+F <- AFP$scores
+F <- as.matrix(round(loadings(AFP)[,1:2],3))  # Obtenemos las puntuaciones factoriales iniciales.
+f <- abs(F)>0.131 
+f[f==T] <- 1
+F*f
+```

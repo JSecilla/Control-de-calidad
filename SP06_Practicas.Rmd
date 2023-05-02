@@ -1,0 +1,398 @@
+---
+title: "SP06_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(qcc)
+library(tidyverse)
+library(readxl)
+library(randtests)
+library(SixSigma)
+eliminar <- function(fuera,reordenar){
+  final <- fuera
+  for(i in 1:length(reordenar)){
+    sumar <- 0
+    for(j in 1:length(fuera)){
+      if(reordenar[i]>=fuera[j]){
+        sumar <- sumar + 1
+      }
+    }
+    x <- reordenar[i] + sumar
+    final <- c(final,x)
+    final <- sort(final)
+  }
+  return(final)
+}
+```
+
+# Enunciado 1
+
+> El volumen de llenado de las botellas de refresco es una característica de la calidad importante. El volumen se mide (aproximadamente) colocando un medidor sobre la boca de la botella y comparando la altura del líquido en el cuello de la botella con una escala codificada. En esta escala, una lectura cero corresponde a la altura de llenado correcta. Se realizan 30 muestras de tamaño n=10 y las alturas de llenado se muestran en el archivo adjunto.
+
+## Cargado de datos
+
+```{r}
+datos <- read.csv("C:/Users/jsm01/Downloads/datosS6E1 (1).csv")
+knitr::kable(datos)
+```
+
+## Variabilidad proceso.
+
+### 1.     ¿qué gráfico y por qué?
+```{r}
+dim(datos)
+```
+
+Vemos que tenemos 30 muestras de tamaño 10, por lo que vamos a usar el gráfico S para estduair la variabilidad.
+
+### 1.1 Estudio de la variabilidad
+
+```{r}
+q1 <- qcc(data = datos,type = "S")
+plot(q1)
+```
+
+```{r}
+(fuera <- which(q1$violations==1))
+```
+
+Vemos que las muestras 8,12,25,29 se salen feura de los límites de control, por lo que asumimos que es por causas atribuibles y las eliminamos.
+
+```{r}
+datos1 <- datos[-fuera,]
+```
+
+```{r}
+q2 <- qcc(data = datos1,type = "S")
+plot(q2)
+```
+
+```{r}
+(comprobar <- which(q2$violations==1))
+```
+
+Vemos que las muestras 5 y 19 del gráfico se salen fuera de los límites de control, por lo que las eliminamos asumiendo que sion por causas atribuibles.
+
+```{r}
+(fuera <- eliminar(fuera = fuera,reordenar = comprobar))
+datos2 <- datos[-fuera,]
+```
+
+```{r}
+q3 <- qcc(data = datos2,type = "S")
+plot(q3)
+```
+
+```{r}
+which(q3$violations==1)
+which(q3$violations==4)
+```
+
+Vemos que tras eliminar las muestras 5,8,12,21,25,29 el gráfico de la variabilidad está bajo control.
+
+### 2.    cuando el gráfico de variabilidad esté Bajo Control diga:
+
+#### a.    muestras eliminadas (ordenadas de menor a mayor, separadas por comas y sin espacios)
+
+```{r}
+paste0(fuera,collapse = ",")
+```
+
+
+#### b.    valor de LIC, LC, LSC
+
+```{r}
+summary(q3)
+q3$center
+q3$limits
+```
+
+
+## Estudio media proceso.
+
+Vamos a usar el gráfico Xbar
+
+```{r}
+q4 <- qcc(data = datos2,type = "xbar",std.dev = "UWAVE-SD")
+plot(q4)
+```
+
+```{r}
+which(q4$violations==1)
+which(q4$violations==4)
+```
+
+
+Vemos que está bajo control.
+
+### 3.    Cuando gráfico de la media esté Bajo Control diga:
+
+#### a.    muestras totales eliminadas (ordenadas de menor a mayor, separadas por comas y sin espacios)
+```{r}
+paste0(fuera,collapse = ",")
+```
+
+#### b.    valor de LIC, LC, LSC
+
+```{r}
+q4$limits
+q4$center
+```
+
+
+#### c.    estimación de μ y σ del proceso.
+
+```{r}
+q4$center
+q4$std.dev
+```
+
+## Límites de especificación.
+
+### 4.    Sean 0±1.6 los límites de especificación, diga:
+
+```{r}
+objetivo <- 0
+LIE <- 0-1.6
+LSE <- 0+1.6
+
+pq<-processCapability(q4, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+#### a.    Capacidad del proceso (comente valor)
+
+```{r}
+pq$indices[1,1]
+```
+
+VEmos que cp = 0.553 < 1 por tanto el proceso no es capáz, se producirán muchas unidades fuera de los límites de especificación
+
+#### b.    %obs fuera de límites y %exp fuera de límites
+
+```{r}
+sum(pq$exp)*100
+```
+
+```{r}
+sum(pq$obs)*100
+```
+
+
+### 5.    ¿Cuáles serían los límites de especificación para que el %exp fuera de límites fuera exactamente el 5%?
+
+```{r}
+qnorm(p = 0.025,mean = q4$center,sd = q4$std.dev,lower.tail = FALSE)
+```
+
+Por tanto los límites serán $\mp$ 1.889.
+
+```{r}
+objetivo <- 0
+LIE <- 0-1.889
+LSE <- 0+1.889
+
+pq<-processCapability(q4, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+### 6.    ¿Cuáles serían los límites de especificación para que la capacidad del proceso sea exactamente igual a 1?
+
+```{r}
+6*q4$std.dev/2
+```
+
+```{r}
+objetivo <- 0
+LIE <- 0-2.8923
+LSE <- 0+2.8923
+
+pq<-processCapability(q4, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+
+# Enunciado 2
+
+> El peso neto (en onzas) de un producto blanqueador en polvo va a monitorearse con cartas de control utilizando un tamaño de la muestra de n=5. Los datos de 20 muestras preliminares están en el archivo
+
+## Cargado de datos
+
+```{r}
+datos <- read.csv("C:/Users/jsm01/Downloads/datosS6E2 (1).csv")
+```
+
+## Variabilidad proceso.
+
+### 1.     ¿qué gráfico y por qué?
+```{r}
+dim(datos)
+```
+
+Vemos que tenemos 20 muestras de tamaño 5, por lo que vamos a usar el gráfico R para estduair la variabilidad.
+
+### 1.1 Estudio de la variabilidad
+
+```{r}
+q1 <- qcc(data = datos,type = "S")
+plot(q1)
+```
+
+```{r}
+(fuera <- which(q1$violations==1))
+```
+
+Vemos que las muestras 6,12 se salen feura de los límites de control, por lo que asumimos que es por causas atribuibles y las eliminamos.
+
+```{r}
+datos1 <- datos[-fuera,]
+```
+
+```{r}
+q2 <- qcc(data = datos1,type = "S")
+plot(q2)
+```
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que tras eliminar las muestras 6,12 el gráfico de la variabilidad está bajo control.
+
+### 2.    cuando el gráfico de variabilidad esté Bajo Control diga:
+
+#### a.    muestras eliminadas (ordenadas de menor a mayor, separadas por comas y sin espacios)
+
+```{r}
+paste0(fuera,collapse = ",")
+```
+
+
+#### b.    valor de LIC, LC, LSC
+
+```{r}
+summary(q2)
+q2$center
+q2$limits
+```
+
+
+## Estudio media proceso.
+
+Vamos a usar el gráfico Xbar
+
+```{r}
+q3 <- qcc(data = datos1,type = "xbar")
+plot(q3)
+```
+
+```{r}
+which(q3$violations==1)
+which(q3$violations==4)
+```
+
+
+Vemos que está bajo control.
+
+### 3.    Cuando gráfico de la media esté Bajo Control diga:
+
+#### a.    muestras totales eliminadas (ordenadas de menor a mayor, separadas por comas y sin espacios)
+```{r}
+paste0(fuera,collapse = ",")
+```
+
+#### b.    valor de LIC, LC, LSC
+
+```{r}
+q3$limits
+q3$center
+```
+
+
+#### c.    estimación de μ y σ del proceso.
+
+```{r}
+q3$center
+q3$std.dev
+```
+
+## Límites de especificación.
+
+### 4.    Sean 0±1.6 los límites de especificación, diga:
+
+```{r}
+objetivo <- 16.2
+LIE <- 16.2-0.5
+LSE <- 16.2+0.5
+
+pq<-processCapability(q3, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+#### a.    Capacidad del proceso (comente valor)
+
+```{r}
+pq$indices[1,1]
+```
+
+VEmos que cp = 0.811 < 1 por tanto el proceso no es capáz, se producirán muchas unidades fuera de los límites de especificación
+
+#### b.    %obs fuera de límites y %exp fuera de límites
+
+```{r}
+sum(pq$exp)*100
+```
+
+```{r}
+sum(pq$obs)*100
+```
+
+
+### 5.    ¿Cuáles serían los límites de especificación para que el %exp fuera de límites fuera exactamente el 1%?
+
+```{r}
+qnorm(p = 0.005,mean = q3$center,sd = q3$std.dev,lower.tail = FALSE)
+qnorm(p = 0.005,mean = q3$center,sd = q3$std.dev)
+```
+
+Por tanto los límites serán 15.73979 y 16.79798.
+
+```{r}
+objetivo <- 16.2
+LIE <- 15.73979
+LSE <- 16.79798
+
+pq<-processCapability(q3, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
+
+### 6.    ¿Cuáles serían los límites de especificación para que la capacidad del proceso sea exactamente igual a 1?
+
+```{r}
+objetivo - 6*q3$std.dev/2
+objetivo + 6*q3$std.dev/2
+```
+
+```{r}
+objetivo <- 16.2
+LIE <- 15.58378
+LSE <- 16.81622
+
+pq<-processCapability(q3, spec.limits=c(LIE,LSE), target=objetivo)
+plot(pq)
+```
