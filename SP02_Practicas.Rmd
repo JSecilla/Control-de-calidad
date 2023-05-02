@@ -1,0 +1,173 @@
+---
+title: "SP02_Practicas"
+author: "Jesus"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(qcc)
+```
+
+# Enunciado 1
+
+> Utilice el siguiente código para generar el conjunto de datos. Es importante que cada grupo inicialice la semilla "set.seed(n)" poniendo su (número de grupo + 100) en el lugar de n.
+
+```{r}
+n <- 100453131
+set.seed(n)
+z<-rbinom(40, 10, 0.5)
+D<-rbinom(40, 50, 0.05)
+D<-D+4*z
+T<-rep(50, 40)
+S<-1:40
+datos<-data.frame(sample=S,D=D, size=T)
+datos
+```
+
+
+> Una vez obtenido el conjunto de datos analice las muestras hasta conseguir que el gráfico de la fracción de disconformes de ese proceso esté BAJO CONTROL. Para ello se supondrá que las muestras que están fuera de control son por causas atribuibles. Que se han investigado y descubierto las causas que lo provocan, se han subsanado y por tanto se pueden eliminar esas muestra y se continua con el estudio.
+En cada paso debe indicar los límites LIC, LC, LSC, el valor de p media, el número de las muestras candidatas a ser eliminadas, y si el gráfico del proceso está o no BAJO CONTROL.
+
+Nos hablan del grafico de la fracción de disconformes por tanto se refieren al gráfico p
+
+```{r}
+q1 =qcc(datos$D,type="p",sizes=datos$size,nsigmas=3,rules=c(1,4))
+plot(q1)
+```
+
+```{r}
+summary(q1)
+```
+
+Vemos quw algunas muestras se salen fuera de los limites de control y por tanto incumplen la regla 1, vamos a ver cuales son:
+
+```{r}
+which(q1$violations==1)
+```
+```{r}
+fuera <- which(q1$violations==1)
+datos1 <- datos[-fuera,]
+```
+
+Volvemos a inspeccionar los nuevos datos:
+
+```{r}
+q2 =qcc(datos1$D,type="p",sizes=datos1$size,nsigmas=3,rules=c(1,4))
+plot(q2)
+summary(q2)
+```
+
+Vemos que no parece que se incumpla ninguna norma, no obstante lo comprobamos
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Por tanto vemos que el gráfico está bajo control.
+
+# Enunciado 2
+
+## Cargado de datos
+
+```{r}
+n <- 100453131
+set.seed(n)
+z<-c(rbinom(40, 10, 0.5), rep(0,30))
+D<-rbinom(70, 50, 0.05)
+D<-D+4*z
+T<-rep(50, 70)
+S<-1:70
+B<-c(rep(TRUE,40), rep(FALSE,30))
+datos<-data.frame(sample=S,D=D, size=T, trial=B)
+datos
+datostrain <- datos[datos$trial==TRUE,]
+datosnuevos <- datos[datos$trial==FALSE,]
+```
+
+
+## Calibracion datos entrenamiento
+
+```{r}
+q1 <- qcc(data = datostrain$D, type = "p",sizes = datostrain$size)
+plot(q1)
+summary(q1)
+```
+
+Vemos que hay varios puntos fuera de los límites de control, vamos a buscar cuales son
+
+```{r}
+(fuera <- which(q1$violations==1))
+datostrain1 <- datostrain[-fuera,]
+```
+
+## Segunda calibracion datos de entrenamiento
+
+```{r}
+q2 <- qcc(data = datostrain1$D,type = "p",sizes = datostrain1$size)
+plot(q2)
+summary(q2)
+```
+
+
+Vemos que parece que ya esta bajo control, no obstante lo comprobamos
+
+```{r}
+which(q2$violations==1)
+which(q2$violations==4)
+```
+
+Vemos que los datos de entrenamiento están bajo control.
+
+## Incorporación de nuevos datos
+
+```{r}
+q3 <- qcc(data = datostrain1$D,type = "p",sizes = datostrain1$size,newdata = datosnuevos$D,newsizes = datosnuevos$size)
+plot(q3)
+summary(q3)
+```
+
+Podemos ver cómo claramente el centro de los datos ha cambiado.
+
+No obstante vamos a hacer un contraste de hipótesis para confirmarlo estadísticamente
+
+$$
+H_0 : p_1 = p_2
+$$
+
+$$
+H_1 : p_1 \neq p_2
+$$
+```{r}
+x <- c(sum(datostrain1$D),sum(datosnuevos$D))
+y <- c(sum(datostrain1$size),sum(datosnuevos$size))
+prop.test(x = x,n = y,alternative = "two.sided")
+```
+
+Comprobamos que tenemos un cambio en el centro de nuestros datos, habría que revisar las nuevas condiciones en las que hemos tomado los nuevos datos.
+
+## Calculo de los nuevos limites solo con los datos nuevos
+
+```{r}
+q4 <- qcc(data = datosnuevos$D,type = "p",sizes = datosnuevos$size)
+plot(q4)
+```
+
+Vemos que están bajo control
+
+```{r}
+summary(q4)
+```
+
